@@ -1,0 +1,22 @@
+{
+  "name": "chatbot-politico-gemini",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Chatbot político neutro e citador de fontes usando API do Gemini",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": ["chatbot", "politica", "gemini", "brasil", "eleicoes"],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
