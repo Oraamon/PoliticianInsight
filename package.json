@@ -6,8 +6,11 @@
   "author": "",
   "license": "MIT",
   "scripts": {
+    "predev": "npm --prefix frontend install",
     "dev": "npm --prefix frontend run dev",
+    "prebuild": "npm --prefix frontend install",
     "build": "npm --prefix frontend run build",
+    "prelint": "npm --prefix frontend install",
     "lint": "npm --prefix frontend run lint"
   }
 }
