@@ -515,12 +515,13 @@
   }
 
   .chat-messages {
-    padding: 100px 16px 140px 16px;
+    padding: 100px 16px 200px 16px;
   }
 
   .chat-suggestions-container {
     left: 16px;
     right: 16px;
+    bottom: 200px;
   }
 
   .chat-input-container {
@@ -530,7 +531,8 @@
     margin-right: 0;
     padding: 12px;
     gap: 8px;
-    bottom: 12px;
+    bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+    position: fixed;
   }
 
   .chat-input {

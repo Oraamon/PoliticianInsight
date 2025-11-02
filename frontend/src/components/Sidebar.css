@@ -648,6 +648,12 @@
 
   .sidebar-content {
     padding-top: 60px;
+    padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sidebar-settings-section {
+    margin-top: auto;
+    padding-bottom: 20px;
   }
 }
 
