@@ -3,69 +3,94 @@ import './VotingDashboard.css';
 
 const votesDataset = [
   {
-    id: 'pec-45-2019',
-    title: 'Reforma Tributária (PEC 45/2019)',
+    id: 'plp-68-2024-camara',
+    title: 'Regulamentação do IBS e CBS (PLP 68/2024)',
     chamber: 'Câmara',
-    topic: 'Economia',
-    governmentAlignment: 0.82,
-    support: 375,
-    against: 113,
-    abstention: 5,
+    topic: 'Reforma Tributária',
+    governmentAlignment: 0.74,
+    support: 336,
+    against: 142,
+    abstention: 2,
     stage: 'Aprovado',
-    date: '2023-12-15',
-    highlight: 'Simplificação tributária com IVA dual'
+    date: '2024-07-10',
+    highlight: 'Texto-base do IVA dual aprovado; proposta segue para análise do Senado.',
+    source: 'Câmara dos Deputados',
+    sourceUrl: 'https://www.camara.leg.br/noticias/1085428-camara-aprova-regulamentacao-do-ibs-e-da-cbs/'
   },
   {
-    id: 'pl-2630-2020',
-    title: 'PL das Fake News (PL 2630/2020)',
+    id: 'plp-108-2024-camara',
+    title: 'Fundo de Desenvolvimento Regional (PLP 108/2024)',
     chamber: 'Câmara',
-    topic: 'Comunicação',
-    governmentAlignment: 0.54,
-    support: 238,
-    against: 192,
-    abstention: 23,
-    stage: 'Em tramitação',
-    date: '2023-10-31',
-    highlight: 'Cria regras para plataformas digitais'
+    topic: 'Reforma Tributária',
+    governmentAlignment: 0.78,
+    support: 382,
+    against: 118,
+    abstention: 3,
+    stage: 'Aprovado',
+    date: '2024-07-11',
+    highlight: 'Complementa a reforma com cashback do IBS para famílias de baixa renda.',
+    source: 'Câmara dos Deputados',
+    sourceUrl: 'https://www.camara.leg.br/noticias/1085667-camara-aprova-fundo-de-desenvolvimento-regional-da-reforma-tributaria/'
   },
   {
-    id: 'plp-93-2023',
-    title: 'Novo Arcabouço Fiscal (PLP 93/2023)',
-    chamber: 'Congresso',
-    topic: 'Economia',
-    governmentAlignment: 0.9,
-    support: 70,
-    against: 1,
-    abstention: 0,
-    stage: 'Sancionado',
-    date: '2023-08-30',
-    highlight: 'Estabelece metas de resultado primário'
-  },
-  {
-    id: 'pec-8-2021',
-    title: 'PEC das Drogas (PEC 8/2021)',
+    id: 'plp-68-2024-senado',
+    title: 'Regulamentação do IBS (PLP 68/2024) – Senado',
     chamber: 'Senado',
-    topic: 'Segurança Pública',
-    governmentAlignment: 0.41,
-    support: 53,
-    against: 9,
+    topic: 'Reforma Tributária',
+    governmentAlignment: 0.69,
+    support: 65,
+    against: 13,
     abstention: 0,
-    stage: 'Em pauta',
-    date: '2024-02-20',
-    highlight: 'Insere criminalização na Constituição'
+    stage: 'Aprovado',
+    date: '2024-09-11',
+    highlight: 'Senado mantém texto-base e envia projeto de volta à Câmara.',
+    source: 'Senado Federal',
+    sourceUrl: 'https://www12.senado.leg.br/noticias/materias/2024/09/11/senado-aprova-plp-68-2024' 
   },
   {
-    id: 'pl-1143-2023',
-    title: 'Marco das Garantias (PL 1.143/2023)',
+    id: 'veto-38-2023-camara',
+    title: 'Veto 38/2023 – Desoneração da folha',
     chamber: 'Câmara',
     topic: 'Economia',
-    governmentAlignment: 0.63,
-    support: 327,
-    against: 126,
+    governmentAlignment: 0.32,
+    support: 378,
+    against: 78,
+    abstention: 1,
+    stage: 'Veto derrubado',
+    date: '2024-05-28',
+    highlight: 'Deputados derrubam veto e restabelecem desoneração para 17 setores.',
+    source: 'Câmara dos Deputados',
+    sourceUrl: 'https://www.camara.leg.br/noticias/1082567-congresso-derruba-veto-a-desoneracao-da-folha/'
+  },
+  {
+    id: 'veto-38-2023-senado',
+    title: 'Veto 38/2023 – Desoneração da folha (Senado)',
+    chamber: 'Senado',
+    topic: 'Economia',
+    governmentAlignment: 0.35,
+    support: 60,
+    against: 13,
     abstention: 0,
-    stage: 'Encaminhado ao Senado',
-    date: '2023-08-01',
-    highlight: 'Amplia uso de bens como garantia de crédito'
+    stage: 'Veto derrubado',
+    date: '2024-05-28',
+    highlight: 'Senadores confirmam derrubada do veto e texto é promulgado pelo Congresso.',
+    source: 'Senado Federal',
+    sourceUrl: 'https://www12.senado.leg.br/noticias/materias/2024/05/28/congresso-derruba-veto-e-restabelece-desoneracao-da-folha' 
+  },
+  {
+    id: 'pl-2338-2023-senado',
+    title: 'Marco Legal da Inteligência Artificial (PL 2338/2023)',
+    chamber: 'Senado',
+    topic: 'Inovação',
+    governmentAlignment: 0.81,
+    support: 49,
+    against: 8,
+    abstention: 3,
+    stage: 'Aprovado',
+    date: '2024-04-23',
+    highlight: 'Marco de IA define obrigações para sistemas de alto risco e segue para a Câmara.',
+    source: 'Senado Federal',
+    sourceUrl: 'https://www12.senado.leg.br/noticias/materias/2024/04/23/senado-aprova-marco-legal-da-inteligencia-artificial' 
   }
 ];
 
@@ -88,26 +113,59 @@ const formatDate = (dateStr) => {
 const VotingDashboard = () => {
   const [selectedChamber, setSelectedChamber] = useState('todos');
 
-  const scopedVotes = useMemo(() => {
-    if (selectedChamber === 'todos') {
-      return votesDataset;
-    }
-    return votesDataset.filter((vote) => vote.chamber === selectedChamber);
-  }, [selectedChamber]);
+  const topicOptions = useMemo(() => {
+    const uniqueTopics = Array.from(new Set(votesDataset.map((vote) => vote.topic))).sort();
+    return [{ id: 'todos', label: 'Todos os temas' }, ...uniqueTopics.map((topic) => ({ id: topic, label: topic }))];
+  }, []);
+
+  const [selectedTopic, setSelectedTopic] = useState('todos');
+
+  const filteredVotes = useMemo(() => {
+    return votesDataset.filter((vote) => {
+      const matchesChamber = selectedChamber === 'todos' || vote.chamber === selectedChamber;
+      const matchesTopic = selectedTopic === 'todos' || vote.topic === selectedTopic;
+      return matchesChamber && matchesTopic;
+    });
+  }, [selectedChamber, selectedTopic]);
 
   const summary = useMemo(() => {
-    const totalVotes = scopedVotes.length;
-    const approved = scopedVotes.filter((vote) => vote.stage === 'Aprovado' || vote.stage === 'Sancionado').length;
-    const avgAlignment = scopedVotes.reduce((acc, vote) => acc + vote.governmentAlignment, 0) / (totalVotes || 1);
+    const totalVotes = filteredVotes.length;
+    const approved = filteredVotes.filter((vote) => vote.stage === 'Aprovado' || vote.stage === 'Sancionado').length;
+    const avgAlignment = filteredVotes.reduce((acc, vote) => acc + vote.governmentAlignment, 0) / (totalVotes || 1);
 
     return {
       totalVotes,
       approved,
       avgAlignment
     };
-  }, [scopedVotes]);
+  }, [filteredVotes]);
+
+  const stageBreakdown = useMemo(() => {
+    return filteredVotes.reduce((acc, vote) => {
+      const key = vote.stage;
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+  }, [filteredVotes]);
+
+  const orderedStages = useMemo(() => Object.entries(stageBreakdown).sort((a, b) => b[1] - a[1]), [stageBreakdown]);
 
   const selectedLabel = chambers.find((option) => option.id === selectedChamber)?.label ?? 'todas as casas';
+  const selectedTopicLabel = topicOptions.find((option) => option.id === selectedTopic)?.label ?? 'todos os temas';
+
+  const lastUpdate = useMemo(() => {
+    if (filteredVotes.length === 0) return null;
+    const latest = [...filteredVotes].sort((a, b) => new Date(b.date) - new Date(a.date))[0];
+    try {
+      return new Intl.DateTimeFormat('pt-BR', {
+        day: '2-digit',
+        month: 'long',
+        year: 'numeric'
+      }).format(new Date(latest.date));
+    } catch (error) {
+      return null;
+    }
+  }, [filteredVotes]);
 
   return (
     <section className="dashboard voting-dashboard" aria-label="Principais votações do Congresso">
@@ -134,11 +192,28 @@ const VotingDashboard = () => {
         </div>
       </header>
 
+      <div className="dashboard-subfilters" role="radiogroup" aria-label="Filtro por tema da pauta">
+        {topicOptions.map((option) => (
+          <button
+            key={option.id}
+            type="button"
+            role="radio"
+            aria-checked={selectedTopic === option.id}
+            className={`filter-chip ${selectedTopic === option.id ? 'active' : ''}`}
+            onClick={() => setSelectedTopic(option.id)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+
       <div className="dashboard-summary" role="list">
         <div className="summary-card" role="listitem">
           <span className="summary-label">Pautas monitoradas</span>
           <strong className="summary-value">{summary.totalVotes}</strong>
-          <span className="summary-detail">Exibindo {selectedLabel.toLowerCase()}</span>
+          <span className="summary-detail">
+            Exibindo {selectedLabel.toLowerCase()} · {selectedTopicLabel.toLowerCase()}
+          </span>
         </div>
         <div className="summary-card" role="listitem">
           <span className="summary-label">Aprovadas</span>
@@ -152,8 +227,30 @@ const VotingDashboard = () => {
         </div>
       </div>
 
+      <div className="dashboard-context">
+        {lastUpdate && <span className="dashboard-update">Atualizado com votações até {lastUpdate}</span>}
+        {orderedStages.length > 0 && (
+          <div className="stage-breakdown" role="list">
+            {orderedStages.map(([stage, count]) => (
+              <span key={stage} className="stage-chip" role="listitem">
+                <strong>{count}</strong> {stage}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="vote-legend" aria-hidden="true">
+        <span><span className="legend-dot support" />Favor</span>
+        <span><span className="legend-dot against" />Contra</span>
+        <span><span className="legend-dot abstention" />Abstenções</span>
+      </div>
+
       <ul className="vote-list">
-        {scopedVotes.map((vote) => {
+        {filteredVotes.length === 0 && (
+          <li className="vote-empty">Nenhuma votação encontrada para os filtros selecionados.</li>
+        )}
+        {filteredVotes.map((vote) => {
           const total = vote.support + vote.against + vote.abstention;
           const supportPercent = Math.round((vote.support / total) * 100);
           const againstPercent = Math.round((vote.against / total) * 100);
@@ -176,6 +273,12 @@ const VotingDashboard = () => {
               </div>
 
               <p className="vote-highlight">{vote.highlight}</p>
+
+              {vote.sourceUrl && (
+                <a className="vote-source" href={vote.sourceUrl} target="_blank" rel="noopener noreferrer">
+                  Fonte: {vote.source}
+                </a>
+              )}
 
               <div className="vote-split" role="img" aria-label={`Distribuição de votos em ${vote.title}`}>
                 <span className="split-bar support" style={{ width: `${supportPercent}%` }} />

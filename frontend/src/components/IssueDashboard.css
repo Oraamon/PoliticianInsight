@@ -47,8 +47,24 @@
   line-height: 1.5;
 }
 
+.issue-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(231, 236, 255, 0.55);
+}
+
 .light-mode .issue-description {
   color: rgba(26, 26, 26, 0.7);
+}
+
+.light-mode .issue-update {
+  color: rgba(15, 23, 42, 0.55);
 }
 
 .issue-indicators {
@@ -216,6 +232,39 @@
 .light-mode .issue-tag {
   background: rgba(74, 144, 226, 0.14);
   color: #1d4ed8;
+}
+
+.issue-actions {
+  display: grid;
+  gap: 12px;
+}
+
+.issue-next-step {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+  color: rgba(231, 236, 255, 0.78);
+  line-height: 1.4;
+}
+
+.issue-actors {
+  display: grid;
+  gap: 8px;
+}
+
+.issue-tag.actor {
+  background: rgba(110, 168, 255, 0.12);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.light-mode .issue-tag.actor {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.light-mode .issue-next-step {
+  color: rgba(26, 26, 26, 0.72);
 }
 
 @media (max-width: 600px) {

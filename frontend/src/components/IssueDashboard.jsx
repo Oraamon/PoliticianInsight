@@ -4,98 +4,125 @@ import './IssueDashboard.css';
 const issuesDataset = {
   '30d': [
     {
-      id: 'reforma-tributaria',
-      title: 'Reforma Tributária',
-      mentions: 12600,
-      intensity: 92,
+      id: 'reforma-tributaria-regulamentacao',
+      title: 'Regulamentação da Reforma Tributária',
+      mentions: 15480,
+      intensity: 94,
       sentiment: 'positivo',
-      relatedVotes: ['PEC 45/2019', 'PLP 93/2023'],
+      relatedVotes: ['PLP 68/2024', 'PLP 108/2024'],
       trend: 'up',
-      description: 'Empresários e municípios monitoram a regulamentação do IVA dual.'
+      description: 'Câmara e Senado detalham o IBS e a CBS após a aprovação da PEC 45/2019.',
+      lastUpdate: 'Atualizado em 16 out 2024',
+      nextStep: 'Senado analisa destaques do PLP 108/2024 antes do texto retornar à Câmara.',
+      keyPlayers: ['Relator: Dep. Reginaldo Lopes (PT-MG)', 'Relatora no Senado: Sen. Tereza Cristina (PP-MS)']
     },
     {
-      id: 'seguranca-publica',
-      title: 'Segurança Pública',
-      mentions: 10340,
+      id: 'desoneracao-folha',
+      title: 'Desoneração da folha e compensações',
+      mentions: 13120,
       intensity: 88,
       sentiment: 'neutro',
-      relatedVotes: ['PEC 8/2021', 'PL 1826/2023'],
-      trend: 'up',
-      description: 'Enfoque em pautas sobre drogas e armas no Senado.'
+      relatedVotes: ['Veto 38/2023 (derrubado)', 'PL 1435/2024'],
+      trend: 'warning',
+      description: 'Após derrubar o veto presidencial, Congresso pressiona por fonte permanente de compensação.',
+      lastUpdate: 'Atualizado em 24 set 2024',
+      nextStep: 'Ministério da Fazenda negocia proposta de compensação com governadores.',
+      keyPlayers: ['Dep. Arthur Lira (PP-AL)', 'Ministro Fernando Haddad']
     },
     {
-      id: 'saude',
-      title: 'Financiamento da Saúde',
-      mentions: 9800,
-      intensity: 74,
-      sentiment: 'positivo',
-      relatedVotes: ['PLN 5/2024', 'PL 2564/2020'],
+      id: 'pl-1904-2024',
+      title: 'PL 1904/2024 (Aborto legal)',
+      mentions: 11870,
+      intensity: 90,
+      sentiment: 'negativo',
+      relatedVotes: ['PL 1904/2024', 'REQ 96/2024 (Urgência)'],
       trend: 'warning',
-      description: 'Debate sobre piso da enfermagem e recursos federais.'
+      description: 'Projeto endurece penas e mobiliza frentes parlamentares e sociedade civil.',
+      lastUpdate: 'Atualizado em 2 out 2024',
+      nextStep: 'Presidência da Câmara avalia consulta a líderes antes de levar ao plenário.',
+      keyPlayers: ['Autora: Dep. Soraya Santos (PL-RJ)', 'Frente Parlamentar Feminista']
     }
   ],
   '90d': [
     {
-      id: 'energia',
-      title: 'Transição Energética',
-      mentions: 7800,
-      intensity: 81,
+      id: 'marco-ia',
+      title: 'Marco Regulatório da Inteligência Artificial',
+      mentions: 9860,
+      intensity: 79,
+      sentiment: 'positivo',
+      relatedVotes: ['PL 2338/2023', 'REQ 19/2024 (Urgência)'],
+      trend: 'up',
+      description: 'Senado aprovou texto-base e Câmara prepara substitutivo com foco em IA generativa.',
+      lastUpdate: 'Atualizado em 18 set 2024',
+      nextStep: 'Grupo de trabalho entrega versão final para votação no plenário da Câmara.',
+      keyPlayers: ['Relator: Dep. Eduardo Bismarck (PDT-CE)', 'Presidente do GT: Dep. Fernando Torres (PSD-BA)']
+    },
+    {
+      id: 'pne-2024',
+      title: 'Plano Nacional de Educação 2024-2034',
+      mentions: 9120,
+      intensity: 72,
+      sentiment: 'neutro',
+      relatedVotes: ['PL 2612/2023', 'PLN 4/2024'],
+      trend: 'up',
+      description: 'Meta de financiamento e indicadores de aprendizagem geram disputas entre União e estados.',
+      lastUpdate: 'Atualizado em 9 jul 2024',
+      nextStep: 'Comissão especial conclui relatório e pauta votação no plenário da Câmara.',
+      keyPlayers: ['Relatora: Dep. Professora Goreth (PDT-AP)', 'Undime e Consed']
+    },
+    {
+      id: 'transicao-energetica',
+      title: 'Transição energética e mercado de carbono',
+      mentions: 8740,
+      intensity: 76,
       sentiment: 'positivo',
       relatedVotes: ['PL 412/2022', 'PL 327/2021'],
       trend: 'up',
-      description: 'Créditos de carbono e mercado regulado ganham força.'
-    },
-    {
-      id: 'educacao',
-      title: 'Novo Ensino Médio',
-      mentions: 8450,
-      intensity: 69,
-      sentiment: 'negativo',
-      relatedVotes: ['PL 5230/2023'],
-      trend: 'down',
-      description: 'Revisão do cronograma e pressão de redes estaduais.'
-    },
-    {
-      id: 'agro',
-      title: 'Agronegócio Sustentável',
-      mentions: 7200,
-      intensity: 73,
-      sentiment: 'neutro',
-      relatedVotes: ['PL 2633/2020', 'PL 510/2021'],
-      trend: 'up',
-      description: 'Regularização fundiária e rastreabilidade ambiental.'
+      description: 'Senado aprovou marco do mercado de carbono e aguarda votação final na Câmara.',
+      lastUpdate: 'Atualizado em 28 ago 2024',
+      nextStep: 'Líderes articulam acordo para votação do PL 412/2022 no plenário da Câmara.',
+      keyPlayers: ['Relatora: Dep. Carla Zambelli (PL-SP)', 'Ministério do Meio Ambiente']
     }
   ],
   '365d': [
     {
-      id: 'reforma-administrativa',
-      title: 'Reforma Administrativa',
-      mentions: 15600,
-      intensity: 65,
-      sentiment: 'neutro',
-      relatedVotes: ['PEC 32/2020'],
-      trend: 'warning',
-      description: 'Tema recorre em pautas de ajuste fiscal e diálogo com servidores.'
-    },
-    {
-      id: 'privatizacoes',
-      title: 'Privatizações e concessões',
-      mentions: 14200,
-      intensity: 71,
+      id: 'reforma-tributaria',
+      title: 'Reforma Tributária ampla',
+      mentions: 20560,
+      intensity: 91,
       sentiment: 'positivo',
-      relatedVotes: ['PL 591/2021', 'PL 3797/2020'],
+      relatedVotes: ['PEC 45/2019', 'PEC 110/2019'],
       trend: 'up',
-      description: 'Aeroportos, portos e Correios permanecem na agenda econômica.'
+      description: 'Implementação da PEC 45 permanece prioridade fiscal para União, estados e municípios.',
+      lastUpdate: 'Atualizado em 1 set 2024',
+      nextStep: 'Regulamentação complementar e leis ordinárias serão enviadas até março de 2025.',
+      keyPlayers: ['Ministério da Fazenda', 'Comitê Gestor do IBS']
     },
     {
       id: 'politicas-sociais',
-      title: 'Políticas Sociais',
-      mentions: 16800,
-      intensity: 83,
+      title: 'Políticas sociais e combate à pobreza',
+      mentions: 18420,
+      intensity: 84,
       sentiment: 'positivo',
-      relatedVotes: ['PL 9/2023', 'PL 2380/2023'],
+      relatedVotes: ['PL 9/2023 (Bolsa Família)', 'PL 2380/2023 (Cesta Básica Nacional)'],
       trend: 'up',
-      description: 'Auxílio à infância, Bolsa Família e ações para redução da pobreza.'
+      description: 'Ampliação do Bolsa Família e política de renda mínima dominam a agenda econômica.',
+      lastUpdate: 'Atualizado em 14 ago 2024',
+      nextStep: 'Governo prepara MP para reajuste da linha de pobreza e revisão de benefícios.',
+      keyPlayers: ['Ministério do Desenvolvimento Social', 'Frente Parlamentar Mista de Combate à Fome']
+    },
+    {
+      id: 'clima-e-resiliencia',
+      title: 'Adaptação climática e proteção ambiental',
+      mentions: 16750,
+      intensity: 78,
+      sentiment: 'neutro',
+      relatedVotes: ['PL 2633/2020', 'PL 510/2021', 'PL 412/2022'],
+      trend: 'warning',
+      description: 'Câmara retoma debates sobre regularização fundiária e prevenção a eventos extremos.',
+      lastUpdate: 'Atualizado em 30 jun 2024',
+      nextStep: 'Relatores ajustam texto para conciliar pauta ambiental e segurança jurídica.',
+      keyPlayers: ['Ministério do Meio Ambiente', 'Frente Parlamentar da Agropecuária']
     }
   ]
 };
@@ -149,6 +176,9 @@ const IssueDashboard = () => {
               <div>
                 <h3>{issue.title}</h3>
                 <p className="issue-description">{issue.description}</p>
+                {issue.lastUpdate && (
+                  <span className="issue-update" role="note">{issue.lastUpdate}</span>
+                )}
               </div>
               <div className="issue-indicators">
                 <span className={`issue-trend ${issue.trend}`}>{trendLabels[issue.trend]}</span>
@@ -180,6 +210,27 @@ const IssueDashboard = () => {
                 ))}
               </div>
             </div>
+
+            {(issue.nextStep || (issue.keyPlayers && issue.keyPlayers.length > 0)) && (
+              <div className="issue-actions">
+                {issue.nextStep && (
+                  <p className="issue-next-step">
+                    <span className="metric-label">Próximo passo</span>
+                    <span>{issue.nextStep}</span>
+                  </p>
+                )}
+                {issue.keyPlayers && issue.keyPlayers.length > 0 && (
+                  <div className="issue-actors">
+                    <span className="metric-label">Atores-chave</span>
+                    <div className="issue-tags">
+                      {issue.keyPlayers.map((actor) => (
+                        <span key={actor} className="issue-tag actor">{actor}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </article>
         ))}
       </div>

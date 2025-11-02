@@ -863,7 +863,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
               <path d="M10.5 0C10.5 0 11.0793 5.40743 13.336 7.66405C15.5926 9.92066 21 10.5 21 10.5C21 10.5 15.5926 11.0793 13.336 13.336C11.0793 15.5926 10.5 21 10.5 21C10.5 21 9.92066 15.5926 7.66405 13.336C5.40743 11.0793 0 10.5 0 10.5C0 10.5 5.40743 9.92066 7.66405 7.66405C9.92066 5.40743 10.5 0 10.5 0Z" fill="currentColor"/>
             </svg>
           </div>
-          <h2 className="chat-header-text">Ask our AI anything</h2>
+          <h2 className="chat-header-text">Converse com a ÁgoraAI</h2>
         </div>
       )}
       <div className="chat-messages" ref={messagesContainerRef}>
@@ -871,7 +871,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
               <div className="message-header">
-                {msg.role === 'user' ? 'Você' : 'Assistente'}
+                {msg.role === 'user' ? 'Você' : 'ÁgoraAI'}
               </div>
               {msg.content === 'analysis' && msg.analysisData ? (
                 <div className="message-analysis">
@@ -893,7 +893,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         ))}
         {loading && (
           <div className="message assistant">
-            <div className="message-header">Assistente</div>
+            <div className="message-header">ÁgoraAI</div>
             <div className="message-content">
               <div className="loading-spinner"></div> Pensando...
             </div>
@@ -907,7 +907,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       </div>
       {showSuggestions && (
         <div className="chat-suggestions-container">
-          <p className="suggestions-title">Suggestions on what to ask Our AI</p>
+          <p className="suggestions-title">Sugestões para explorar com a ÁgoraAI</p>
           <div className="chat-suggestions">
             {displayedSuggestions.map((suggestion, idx) => (
               <button
