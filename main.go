@@ -87,6 +87,7 @@ type ChatRequest struct {
 type ChatContext struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	Text    string `json:"text"` // Suporta ambos os formatos: 'text' (server.js) e 'content' (main.go)
 }
 
 type ChatResponse struct {
@@ -153,9 +154,16 @@ Princípios:
 - Não faça persuasão política personalizada. Não promova ou desincentive votos.
 - Se houver desinformação potencial, aponte com respeito e ofereça verificação.
 - Sempre termine sugerindo consultar sites oficiais para informações mais detalhadas.
+
+CAPACIDADES ESPECIAIS:
+- Este sistema POSSUI capacidade de gerar gráficos hexagonais automaticamente para análise de perfis políticos.
+- Quando o usuário solicitar um gráfico, análise ou perfil de um político (usando palavras como "gráfico", "mostre", "análise", "perfil", "pontos fortes/fracos"), o sistema gerará automaticamente um gráfico hexagonal interativo com a análise.
+- NÃO diga que você não pode gerar gráficos. Em vez disso, responda de forma informativa e aguarde - o gráfico será gerado automaticamente pelo sistema.
+
 Formato:
 - Responda em português claro e detalhado.
 - Forneça contexto histórico e informações completas sobre o tema.
+- Se a pergunta for sobre análise/perfil de um político com solicitação de gráfico, forneça informações contextuais e deixe claro que o gráfico será apresentado logo em seguida.
 - Sempre termine com: "Para informações mais detalhadas e atualizadas, recomendo consultar os sites oficiais: [lista de sites relevantes]"
 - Inclua links de fontes oficiais quando apropriado (TSE, Planalto, Câmara, Senado, CNJ).`
 
@@ -309,9 +317,14 @@ func handleChat(w http.ResponseWriter, r *http.Request) {
 	})
 
 	for _, ctx := range req.Context {
+		// Suporta ambos os formatos: 'text' (server.js) e 'content' (main.go)
+		content := ctx.Content
+		if content == "" {
+			content = ctx.Text
+		}
 		contents = append(contents, GeminiContent{
 			Role:  ctx.Role,
-			Parts: []GeminiPart{{Text: ctx.Content}},
+			Parts: []GeminiPart{{Text: content}},
 		})
 	}
 

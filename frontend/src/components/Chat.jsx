@@ -2,7 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import HexagonalChart from './HexagonalChart';
 import './Chat.css';
 
-const Chat = () => {
+const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -51,6 +51,33 @@ const Chat = () => {
     scrollToBottom();
   }, [messages]);
 
+  // Carrega mensagens quando recebe evento de loadChat
+  useEffect(() => {
+    const handleLoadChat = (event) => {
+      const { chatId, messages: loadedMessages } = event.detail;
+      if (loadedMessages && loadedMessages.length > 0) {
+        setMessages(loadedMessages);
+      } else {
+        setMessages([]);
+      }
+    };
+
+    window.addEventListener('loadChat', handleLoadChat);
+    
+    // Limpa mensagens quando currentChatId muda para null (novo chat)
+    if (!currentChatId) {
+      setMessages([]);
+    }
+    
+    return () => window.removeEventListener('loadChat', handleLoadChat);
+  }, [currentChatId]);
+
+  // Salva mensagens no localStorage quando mudarem
+  useEffect(() => {
+    if (messages.length > 0 && currentChatId) {
+      localStorage.setItem(`chat_${currentChatId}`, JSON.stringify(messages));
+    }
+  }, [messages, currentChatId]);
 
   // Atualiza sugestões quando não há mensagens
   useEffect(() => {
@@ -59,20 +86,68 @@ const Chat = () => {
     }
   }, [messages.length]);
 
+  // Prepara o contexto das mensagens anteriores para enviar à API
+  const prepareContext = (currentMessages) => {
+    // Filtra mensagens válidas para contexto (exclui análises e limita quantidade)
+    const validMessages = currentMessages
+      .filter(msg => {
+        // Exclui mensagens de análise e mensagens vazias
+        return msg.content !== 'analysis' && msg.content && typeof msg.content === 'string' && msg.content.trim();
+      })
+      .slice(-20); // Limita a 20 mensagens mais recentes para não sobrecarregar a API
+    
+    // Converte para o formato esperado pela API (server.js usa 'text', main.go usa 'content')
+    // Vamos usar 'text' para compatibilidade com server.js (que parece ser o principal)
+    return validMessages.map(msg => ({
+      role: msg.role === 'user' ? 'user' : 'assistant',
+      text: msg.content
+    }));
+  };
+
   const sendMessage = async () => {
     if (!input.trim() || loading) return;
 
     const userMessage = input.trim();
+    
+    // Cria um novo chat se não existir
+    let chatId = currentChatId;
+    if (!chatId) {
+      chatId = `chat_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      if (setCurrentChatId) {
+        setCurrentChatId(chatId);
+      }
+      
+      // Adiciona ao histórico
+      const chatHistory = JSON.parse(localStorage.getItem('chatHistory') || '[]');
+      chatHistory.push({
+        id: chatId,
+        title: userMessage.length > 50 ? userMessage.substring(0, 50) + '...' : userMessage,
+        firstMessage: userMessage,
+        timestamp: Date.now()
+      });
+      localStorage.setItem('chatHistory', JSON.stringify(chatHistory));
+      
+      // Dispara evento para atualizar sidebar
+      window.dispatchEvent(new Event('chatUpdated'));
+    }
+    
     setInput('');
     setLoading(true);
 
+    // Adiciona a mensagem do usuário imediatamente
     setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+
+    // Prepara o contexto das mensagens anteriores (antes de adicionar a mensagem atual)
+    const context = prepareContext(messages);
 
     try {
       const response = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage })
+        body: JSON.stringify({ 
+          message: userMessage,
+          context: context
+        })
       });
 
       const data = await response.json();
@@ -80,12 +155,21 @@ const Chat = () => {
       if (data.reply) {
         setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
         
-        if (isPoliticianQuery(userMessage)) {
-          const detectedName = extractPoliticianName(userMessage);
+        // Verifica se deve gerar gráfico, considerando o contexto das mensagens anteriores
+        const shouldGenerateChart = isPoliticianQuery(userMessage, messages);
+        if (shouldGenerateChart) {
+          // Tenta extrair nome do político da mensagem atual ou do contexto
+          let detectedName = extractPoliticianName(userMessage);
+          
+          // Se não encontrou nome na mensagem atual, procura no contexto
+          if (!detectedName || detectedName === 'Político') {
+            detectedName = extractPoliticianNameFromContext(messages, userMessage);
+          }
+          
           // Só gera gráfico se detectou um nome válido (não genérico nem palavra comum)
-          const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara'];
-          if (!genericNames.includes(detectedName)) {
-            generateAnalysis(userMessage);
+          const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Brasil', 'Federal'];
+          if (detectedName && !genericNames.includes(detectedName)) {
+            generateAnalysis(userMessage, detectedName);
           }
         }
       } else {
@@ -105,8 +189,69 @@ const Chat = () => {
     }
   };
 
-  const isPoliticianQuery = (query) => {
+  // Extrai nome de político do contexto das mensagens anteriores
+  const extractPoliticianNameFromContext = (messageHistory, currentQuery) => {
+    // Procura por nomes de políticos nas mensagens anteriores
+    const knownPoliticians = [
+      'lula', 'bolsonaro', 'ciro', 'marina', 'aecio', 'temer', 'dilma',
+      'doria', 'haddad', 'boulos', 'freixo', 'collor', 'sarney', 'tasso', 'barbosa'
+    ];
+    
+    // Verifica se há referências a políticos nas últimas mensagens
+    const recentMessages = messageHistory.slice(-5).reverse();
+    for (const msg of recentMessages) {
+      if (msg.role === 'user' && msg.content) {
+        const lowerContent = msg.content.toLowerCase();
+        for (const politician of knownPoliticians) {
+          if (lowerContent.includes(politician)) {
+            return extractPoliticianName(msg.content);
+          }
+        }
+      }
+    }
+    
+    // Verifica se a mensagem atual menciona político em contexto anterior
+    const lowerQuery = currentQuery.toLowerCase();
+    const politicianMap = {
+      'lula': 'Lula',
+      'bolsonaro': 'Bolsonaro',
+      'ciro': 'Ciro Gomes',
+      'marina': 'Marina Silva',
+      'aecio': 'Aécio Neves',
+      'temer': 'Michel Temer',
+      'dilma': 'Dilma Rousseff',
+      'doria': 'João Doria',
+      'haddad': 'Fernando Haddad',
+      'boulos': 'Guilherme Boulos',
+      'freixo': 'Marcelo Freixo',
+      'collor': 'Fernando Collor',
+      'tasso': 'Tasso Jereissati',
+      'barbosa': 'Joaquim Barbosa'
+    };
+    
+    for (const [key, value] of Object.entries(politicianMap)) {
+      if (lowerQuery.includes(key)) {
+        return value;
+      }
+    }
+    
+    return null;
+  };
+
+  const isPoliticianQuery = (query, messageHistory = []) => {
     const lowerQuery = query.toLowerCase();
+    
+    // Palavras que indicam referência a contexto anterior (dele, dela, desse, etc)
+    const contextReferences = ['dele', 'dela', 'desse', 'dessa', 'deles', 'delas', 'disso', 'dessa', 'o gráfico', 'o grafico'];
+    const hasContextReference = contextReferences.some(ref => lowerQuery.includes(ref));
+    
+    // Se tem referência de contexto E palavra de gráfico/análise, procura no histórico
+    if (hasContextReference && (lowerQuery.includes('gráfico') || lowerQuery.includes('grafico') || lowerQuery.includes('análise') || lowerQuery.includes('perfil'))) {
+      const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
+      if (politicianFromContext && politicianFromContext !== 'Político') {
+        return true;
+      }
+    }
     
     // Palavras que indicam pergunta sobre NOTÍCIA/AÇÃO (NÃO devem ativar gráfico)
     const newsActionKeywords = [
@@ -166,9 +311,52 @@ const Chat = () => {
     }
     
     // Se tem nome de político e palavras como "gráfico", "chart", "mostre", "dê", também ativa
-    const graphicKeywords = ['gráfico', 'grafico', 'chart', 'mostre', 'mostra', 'dê', 'de', 'me dê', 'me de'];
+    const graphicKeywords = ['gráfico', 'grafico', 'chart', 'mostre', 'mostra', 'dê', 'de', 'me dê', 'me de', 'me dê o', 'me de o', 'dê-me', 'de-me'];
     if (hasPoliticianName && graphicKeywords.some(keyword => lowerQuery.includes(keyword))) {
       return true;
+    }
+    
+    // Se tem apenas nome de político conhecido (sem palavras de análise), MAS há contexto de gráfico/análise anterior
+    if (hasPoliticianName && !hasAnalysisIntent) {
+      // Verifica se há menção de gráfico/análise nas mensagens anteriores recentes (últimas 5 mensagens)
+      const recentMessages = messageHistory.slice(-5).reverse();
+      const hasRecentAnalysisContext = recentMessages.some(msg => {
+        if (!msg.content) return false;
+        const content = msg.content.toLowerCase();
+        // Verifica tanto nas mensagens do usuário quanto do assistente
+        return content.includes('gráfico') || content.includes('grafico') || 
+               content.includes('análise') || content.includes('perfil') ||
+               content.includes('mostre') || content.includes('mostra') ||
+               content.includes('dê') || content.includes('me dê');
+      });
+      if (hasRecentAnalysisContext) {
+        return true;
+      }
+    }
+    
+    // Se menciona apenas nome de político conhecido (sem outras palavras), considera que pode ser sobre análise
+    // Especialmente útil quando há contexto anterior
+    if (hasPoliticianName && lowerQuery.trim().split(/\s+/).length <= 2) {
+      // Se é apenas o nome ou nome + uma palavra curta, pode ser uma continuação de uma conversa sobre análise
+      const recentMessages = messageHistory.slice(-3).reverse();
+      const hasAnyAnalysisContext = recentMessages.some(msg => {
+        if (!msg.content) return false;
+        const content = msg.content.toLowerCase();
+        return content.includes('gráfico') || content.includes('grafico') || 
+               content.includes('análise') || content.includes('perfil') ||
+               content.includes('análise') || content.includes('avaliação');
+      });
+      if (hasAnyAnalysisContext) {
+        return true;
+      }
+    }
+    
+    // Se tem palavra de gráfico mas não tem nome explícito, verifica contexto
+    if (!hasPoliticianName && (lowerQuery.includes('gráfico') || lowerQuery.includes('grafico'))) {
+      const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
+      if (politicianFromContext && politicianFromContext !== 'Político') {
+        return true;
+      }
     }
     
     // Palavras comuns que começam com maiúscula mas NÃO são nomes de políticos
@@ -343,12 +531,17 @@ const Chat = () => {
     return 'Político';
   };
 
-  const generateAnalysis = (query) => {
-    const detectedPolitician = extractPoliticianName(query);
+  const generateAnalysis = (query, politicianName = null) => {
+    let detectedPolitician = politicianName || extractPoliticianName(query);
+    
+    // Se ainda não encontrou, tenta no contexto
+    if (!detectedPolitician || detectedPolitician === 'Político') {
+      detectedPolitician = extractPoliticianNameFromContext(messages, query);
+    }
     
     // Verificação de segurança: não gera gráfico se o nome for genérico ou palavra comum
-    const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Federal'];
-    if (genericNames.includes(detectedPolitician)) {
+    const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Federal', null];
+    if (!detectedPolitician || genericNames.includes(detectedPolitician)) {
       return; // Não gera gráfico se não identificou um político válido
     }
 
