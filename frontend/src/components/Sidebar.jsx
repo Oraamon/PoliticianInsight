@@ -4,12 +4,25 @@ import './Sidebar.css';
 const Sidebar = ({ onSelectChat, currentChatId }) => {
   const [chatHistory, setChatHistory] = useState([]);
   const [isHovered, setIsHovered] = useState(false);
+  const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
   const [darkMode, setDarkMode] = useState(() => {
     // Carrega preferência do localStorage ou usa false (claro) como padrão
     const saved = localStorage.getItem('darkMode');
     return saved !== null ? saved === 'true' : false;
   });
+
+  // Detecta se é mobile
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth <= 768);
+    };
+    
+    checkMobile();
+    window.addEventListener('resize', checkMobile);
+    return () => window.removeEventListener('resize', checkMobile);
+  }, []);
 
   // Aplica modo noturno na inicialização
   useEffect(() => {
@@ -135,13 +148,56 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
     });
   };
 
+  const handleToggleMobile = () => {
+    setIsMobileOpen(!isMobileOpen);
+  };
+
+  const isOpen = isMobile ? isMobileOpen : isHovered;
+
   return (
-    <div 
-      className={`sidebar ${isHovered ? 'sidebar-open' : ''}`}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-    >
-      <div className="sidebar-content">
+    <>
+      {/* Botão toggle para mobile (só aparece quando collapsed) */}
+      {isMobile && !isMobileOpen && (
+        <button 
+          className="sidebar-mobile-toggle"
+          onClick={handleToggleMobile}
+          aria-label="Abrir menu"
+        >
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <line x1="3" y1="12" x2="21" y2="12"></line>
+            <line x1="3" y1="6" x2="21" y2="6"></line>
+            <line x1="3" y1="18" x2="21" y2="18"></line>
+          </svg>
+        </button>
+      )}
+
+      {/* Overlay para fechar no mobile */}
+      {isMobile && isMobileOpen && (
+        <div 
+          className="sidebar-overlay"
+          onClick={handleToggleMobile}
+        />
+      )}
+
+      <div 
+        className={`sidebar ${isOpen ? 'sidebar-open' : ''} ${isMobile ? 'sidebar-mobile' : ''}`}
+        onMouseEnter={() => !isMobile && setIsHovered(true)}
+        onMouseLeave={() => !isMobile && setIsHovered(false)}
+      >
+        <div className="sidebar-content">
+          {/* Botão fechar no mobile quando aberto */}
+          {isMobile && isMobileOpen && (
+            <button 
+              className="sidebar-mobile-close"
+              onClick={handleToggleMobile}
+              aria-label="Fechar menu"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+              </svg>
+            </button>
+          )}
         <button 
           className="sidebar-new-chat-btn"
           onClick={handleNewChat}
@@ -151,19 +207,19 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
-          {isHovered && <span>Novo Chat</span>}
+          {isOpen && <span>Novo Chat</span>}
         </button>
 
         <div className="sidebar-divider"></div>
 
         <div className="sidebar-chats">
           <div className="sidebar-section-title">
-            {isHovered && <span>Histórico</span>}
+            {isOpen && <span>Histórico</span>}
           </div>
           <div className="sidebar-chats-list">
             {chatHistory.length === 0 ? (
               <div className="sidebar-empty">
-                {isHovered && <span>Nenhum chat anterior</span>}
+                {isOpen && <span>Nenhum chat anterior</span>}
               </div>
             ) : (
               chatHistory
@@ -178,7 +234,7 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
-                    {isHovered && (
+                    {isOpen && (
                       <>
                         <span className="sidebar-chat-title">{getChatTitle(chat)}</span>
                         <span className="sidebar-chat-date">{formatDate(chat.timestamp)}</span>
@@ -212,7 +268,7 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
               <circle cx="12" cy="12" r="3"></circle>
               <path d="M12 1v6m0 6v6m11-7h-6m-6 0H1m16.66-5.66l-4.24 4.24M7.58 16.42l-4.24 4.24m0-11.32l4.24 4.24m8.48 0l4.24 4.24"></path>
             </svg>
-            {isHovered && <span>Configurações</span>}
+            {isOpen && <span>Configurações</span>}
             <svg 
               className={`sidebar-settings-arrow ${isSettingsOpen ? 'open' : ''}`}
               width="16" 
@@ -226,7 +282,7 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
             </svg>
           </button>
 
-          {isSettingsOpen && isHovered && (
+          {isSettingsOpen && isOpen && (
             <div className="sidebar-settings-panel">
               <div className="sidebar-setting-item">
                 <label className="sidebar-setting-label">
@@ -246,7 +302,8 @@ const Sidebar = ({ onSelectChat, currentChatId }) => {
           )}
         </div>
       </div>
-    </div>
+      </div>
+    </>
   );
 };
 

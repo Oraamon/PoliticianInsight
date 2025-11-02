@@ -1,13 +1,32 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import './HexagonalChart.css';
 
 const HexagonalChart = ({ data, politicianName }) => {
   const canvasRef = useRef(null);
+  const [isDarkMode, setIsDarkMode] = useState(
+    document.documentElement.classList.contains('dark-mode')
+  );
+
+  // Monitora mudanças no modo escuro
+  useEffect(() => {
+    const checkDarkMode = () => {
+      setIsDarkMode(document.documentElement.classList.contains('dark-mode'));
+    };
+
+    // Observa mudanças na classe do documento
+    const observer = new MutationObserver(checkDarkMode);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !data || data.length === 0) return;
-
+    
     const ctx = canvas.getContext('2d');
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
@@ -31,16 +50,24 @@ const HexagonalChart = ({ data, politicianName }) => {
       ctx.closePath();
     };
 
+    // Cores baseadas no modo
+    const gridColor = isDarkMode ? 'rgba(255, 255, 255, 0.2)' : 'rgba(0, 0, 0, 0.2)';
+    const lineColor = isDarkMode ? 'rgba(255, 255, 255, 0.25)' : 'rgba(0, 0, 0, 0.25)';
+    const strokeColor = isDarkMode ? '#ffffff' : '#000000';
+    const textColor = isDarkMode ? '#ffffff' : '#000000';
+    const pointFillColor = isDarkMode ? '#ffffff' : '#000000';
+    const pointStrokeColor = isDarkMode ? '#000000' : '#ffffff';
+
     // Desenhar grid hexagonais (3 níveis)
     for (let i = 1; i <= 3; i++) {
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+      ctx.strokeStyle = gridColor;
       ctx.lineWidth = 1;
       drawHexagon((maxRadius * i) / 3);
       ctx.stroke();
     }
 
     // Desenhar linha central para cada ponto
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+    ctx.strokeStyle = lineColor;
     ctx.lineWidth = 1;
     for (let i = 0; i < 6; i++) {
       const angle = (Math.PI / 3) * i - Math.PI / 2;
@@ -69,15 +96,22 @@ const HexagonalChart = ({ data, politicianName }) => {
     }
     ctx.closePath();
 
-    // Preencher área com gradiente escuro
-    const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    gradient.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
-    gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
-    ctx.fillStyle = gradient;
+    // Preencher área com gradiente (ajustado para modo escuro)
+    if (isDarkMode) {
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, 'rgba(255, 255, 255, 0.2)');
+      gradient.addColorStop(1, 'rgba(255, 255, 255, 0.1)');
+      ctx.fillStyle = gradient;
+    } else {
+      const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+      gradient.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+      gradient.addColorStop(1, 'rgba(0, 0, 0, 0.3)');
+      ctx.fillStyle = gradient;
+    }
     ctx.fill();
 
     // Contorno da área
-    ctx.strokeStyle = '#000000';
+    ctx.strokeStyle = strokeColor;
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -102,12 +136,12 @@ const HexagonalChart = ({ data, politicianName }) => {
       const x = centerX + radius * Math.cos(angle);
       const y = centerY + radius * Math.sin(angle);
 
-      // Ponto preto
-      ctx.fillStyle = '#000000';
+      // Ponto (branco no modo escuro, preto no modo claro)
+      ctx.fillStyle = pointFillColor;
       ctx.beginPath();
       ctx.arc(x, y, 6, 0, Math.PI * 2);
       ctx.fill();
-      ctx.strokeStyle = '#ffffff';
+      ctx.strokeStyle = pointStrokeColor;
       ctx.lineWidth = 2;
       ctx.stroke();
 
@@ -116,18 +150,18 @@ const HexagonalChart = ({ data, politicianName }) => {
       const labelX = centerX + labelRadius * Math.cos(angle);
       const labelY = centerY + labelRadius * Math.sin(angle);
 
-      ctx.fillStyle = '#000000';
+      ctx.fillStyle = textColor;
       ctx.font = 'bold 11px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(item.label, labelX, labelY - 8);
       
-      // Valor em preto
-      ctx.fillStyle = '#000000';
+      // Valor
+      ctx.fillStyle = textColor;
       ctx.font = '12px sans-serif';
       ctx.fillText(`${item.value}%`, labelX, labelY + 8);
     });
-  }, [data]);
+  }, [data, isDarkMode]);
 
   return (
     <div className="hexagonal-chart-container">

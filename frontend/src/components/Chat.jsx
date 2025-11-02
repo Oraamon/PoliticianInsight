@@ -249,22 +249,24 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         setMessages(newMessagesWithAssistant);
         
         // Verifica se deve gerar gráfico, considerando o contexto das mensagens anteriores
-        // Usa as mensagens anteriores + a nova mensagem do usuário
+        // Usa as mensagens anteriores + a nova mensagem do usuário + a resposta do assistente
         const messagesWithUser = [...messages, userMessageObj];
-        const shouldGenerateChart = isPoliticianQuery(userMessage, messagesWithUser);
+        const messagesWithBoth = [...messagesWithUser, assistantMessageObj];
+        const shouldGenerateChart = isPoliticianQuery(userMessage, messagesWithBoth);
         if (shouldGenerateChart) {
           // Tenta extrair nome do político da mensagem atual ou do contexto
           let detectedName = extractPoliticianName(userMessage);
           
-          // Se não encontrou nome na mensagem atual, procura no contexto
+          // Se não encontrou nome na mensagem atual, procura no contexto (incluindo mensagem do assistente)
           if (!detectedName || detectedName === 'Político') {
-            detectedName = extractPoliticianNameFromContext(messages, userMessage);
+            detectedName = extractPoliticianNameFromContext(messagesWithBoth, userMessage);
           }
           
           // Só gera gráfico se detectou um nome válido (não genérico nem palavra comum)
           const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Brasil', 'Federal'];
           if (detectedName && !genericNames.includes(detectedName)) {
-            generateAnalysis(userMessage, detectedName);
+            // Passa o histórico completo incluindo a resposta do assistente para melhor detecção
+            generateAnalysis(userMessage, detectedName, messagesWithBoth);
           }
         }
       } else {
@@ -303,44 +305,64 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
 
   // Extrai nome de político do contexto das mensagens anteriores
   const extractPoliticianNameFromContext = (messageHistory, currentQuery) => {
-    // Procura por nomes de políticos nas mensagens anteriores
-    const knownPoliticians = [
-      'lula', 'bolsonaro', 'ciro', 'marina', 'aecio', 'temer', 'dilma',
-      'doria', 'haddad', 'boulos', 'freixo', 'collor', 'sarney', 'tasso', 'barbosa'
-    ];
+    // Mapa de políticos conhecidos (versões completas e abreviações)
+    const politicianMap = {
+      'lula': 'Lula',
+      'luiz inácio lula': 'Lula',
+      'luiz inacio lula': 'Lula',
+      'lula da silva': 'Lula',
+      'bolsonaro': 'Bolsonaro',
+      'jair bolsonaro': 'Bolsonaro',
+      'ciro': 'Ciro Gomes',
+      'ciro gomes': 'Ciro Gomes',
+      'marina': 'Marina Silva',
+      'marina silva': 'Marina Silva',
+      'aecio': 'Aécio Neves',
+      'aécio neves': 'Aécio Neves',
+      'temer': 'Michel Temer',
+      'michel temer': 'Michel Temer',
+      'dilma': 'Dilma Rousseff',
+      'dilma rousseff': 'Dilma Rousseff',
+      'doria': 'João Doria',
+      'joão doria': 'João Doria',
+      'joao doria': 'João Doria',
+      'haddad': 'Fernando Haddad',
+      'fernando haddad': 'Fernando Haddad',
+      'boulos': 'Guilherme Boulos',
+      'guilherme boulos': 'Guilherme Boulos',
+      'freixo': 'Marcelo Freixo',
+      'marcelo freixo': 'Marcelo Freixo',
+      'collor': 'Fernando Collor',
+      'fernando collor': 'Fernando Collor',
+      'tasso': 'Tasso Jereissati',
+      'tasso jereissati': 'Tasso Jereissati',
+      'barbosa': 'Joaquim Barbosa',
+      'joaquim barbosa': 'Joaquim Barbosa'
+    };
     
-    // Verifica se há referências a políticos nas últimas mensagens
-    const recentMessages = messageHistory.slice(-5).reverse();
+    // Verifica se há referências a políticos nas últimas mensagens (usuário E assistente)
+    const recentMessages = messageHistory.slice(-10).reverse();
     for (const msg of recentMessages) {
-      if (msg.role === 'user' && msg.content) {
+      if (msg.content && typeof msg.content === 'string') {
         const lowerContent = msg.content.toLowerCase();
-        for (const politician of knownPoliticians) {
-          if (lowerContent.includes(politician)) {
-            return extractPoliticianName(msg.content);
+        // Procura por nomes de políticos no conteúdo
+        for (const [key, value] of Object.entries(politicianMap)) {
+          if (lowerContent.includes(key)) {
+            return value;
+          }
+        }
+        // Também tenta extrair usando a função extractPoliticianName para mensagens do usuário
+        if (msg.role === 'user') {
+          const extracted = extractPoliticianName(msg.content);
+          if (extracted && extracted !== 'Político') {
+            return extracted;
           }
         }
       }
     }
     
-    // Verifica se a mensagem atual menciona político em contexto anterior
+    // Verifica se a mensagem atual menciona político
     const lowerQuery = currentQuery.toLowerCase();
-    const politicianMap = {
-      'lula': 'Lula',
-      'bolsonaro': 'Bolsonaro',
-      'ciro': 'Ciro Gomes',
-      'marina': 'Marina Silva',
-      'aecio': 'Aécio Neves',
-      'temer': 'Michel Temer',
-      'dilma': 'Dilma Rousseff',
-      'doria': 'João Doria',
-      'haddad': 'Fernando Haddad',
-      'boulos': 'Guilherme Boulos',
-      'freixo': 'Marcelo Freixo',
-      'collor': 'Fernando Collor',
-      'tasso': 'Tasso Jereissati',
-      'barbosa': 'Joaquim Barbosa'
-    };
-    
     for (const [key, value] of Object.entries(politicianMap)) {
       if (lowerQuery.includes(key)) {
         return value;
@@ -468,6 +490,13 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
       if (politicianFromContext && politicianFromContext !== 'Político') {
         return true;
+      }
+      // Se tem "dele", "dela", "desse", etc., e menciona gráfico, também verifica contexto
+      if (hasContextReference) {
+        const politicianFromContextRef = extractPoliticianNameFromContext(messageHistory, query);
+        if (politicianFromContextRef && politicianFromContextRef !== 'Político') {
+          return true;
+        }
       }
     }
     
@@ -643,12 +672,19 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     return 'Político';
   };
 
-  const generateAnalysis = (query, politicianName = null) => {
-    let detectedPolitician = politicianName || extractPoliticianName(query);
+  const generateAnalysis = (query, politicianName = null, messageHistory = null) => {
+    let detectedPolitician = politicianName;
+    const historyToUse = messageHistory || messages;
     
-    // Se ainda não encontrou, tenta no contexto
+    // Se não recebeu nome, tenta extrair da query atual
     if (!detectedPolitician || detectedPolitician === 'Político') {
-      detectedPolitician = extractPoliticianNameFromContext(messages, query);
+      detectedPolitician = extractPoliticianName(query);
+    }
+    
+    // Se ainda não encontrou, tenta no contexto das mensagens
+    if (!detectedPolitician || detectedPolitician === 'Político') {
+      // Usa o histórico fornecido ou o estado atual de mensagens
+      detectedPolitician = extractPoliticianNameFromContext(historyToUse, query);
     }
     
     // Verificação de segurança: não gera gráfico se o nome for genérico ou palavra comum
@@ -657,16 +693,30 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       return; // Não gera gráfico se não identificou um político válido
     }
 
+    // Gera o gráfico após um pequeno delay para melhor UX
     setTimeout(() => {
       const analysisData = {
         politician: detectedPolitician,
         data: generateHexagonalData(detectedPolitician)
       };
-      setMessages(prev => [...prev, {
+      const analysisMessage = {
         role: 'assistant',
         content: 'analysis',
         analysisData: analysisData
-      }]);
+      };
+      
+      setMessages(prev => {
+        const newMessages = [...prev, analysisMessage];
+        // Salva também no localStorage
+        if (currentChatId) {
+          try {
+            localStorage.setItem(`chat_${currentChatId}`, JSON.stringify(newMessages));
+          } catch (error) {
+            // Erro ao salvar mensagem de análise
+          }
+        }
+        return newMessages;
+      });
     }, 1500);
   };
 
@@ -850,8 +900,13 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           onClick={sendMessage} 
           disabled={loading || !input.trim()}
           className="chat-button"
+          aria-label="Enviar mensagem"
         >
-          Enviar
+          <span className="chat-button-text">Enviar</span>
+          <svg className="chat-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
       </div>
     </div>
