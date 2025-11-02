@@ -30,12 +30,11 @@ const InsightsOverview = ({ showHeader }) => {
         <div className="insights-intro">
           <h1>Panorama político em tempo real</h1>
           <p>
-            Acompanhe votações estratégicas, temas mais discutidos no Congresso e
-            insumos confiáveis para orientar decisões públicas e corporativas.
+            Acompanhe votações decisivas, temas mais quentes e métricas consolidadas em um painel objetivo para decisões rápidas.
           </p>
           <div className="insights-badges">
-            <span className="insight-badge">Dados oficiais atualizados diariamente</span>
-            <span className="insight-badge">Curadoria humana + IA</span>
+            <span className="insight-badge">Atualizado diariamente</span>
+            <span className="insight-badge">Fontes oficiais + curadoria</span>
           </div>
         </div>
         <div className="insights-metrics" role="list">
@@ -48,8 +47,11 @@ const InsightsOverview = ({ showHeader }) => {
           ))}
         </div>
       </div>
-      <VotingDashboard />
-      <IssueDashboard />
+
+      <div className="insights-panels">
+        <VotingDashboard />
+        <IssueDashboard />
+      </div>
     </section>
   );
 };

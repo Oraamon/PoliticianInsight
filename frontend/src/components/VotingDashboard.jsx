@@ -13,8 +13,7 @@ const votesDataset = [
     abstention: 5,
     stage: 'Aprovado',
     date: '2023-12-15',
-    highlight: 'Simplificação tributária com IVA dual',
-    trend: 'up'
+    highlight: 'Simplificação tributária com IVA dual'
   },
   {
     id: 'pl-2630-2020',
@@ -27,8 +26,7 @@ const votesDataset = [
     abstention: 23,
     stage: 'Em tramitação',
     date: '2023-10-31',
-    highlight: 'Cria regras para plataformas digitais',
-    trend: 'warning'
+    highlight: 'Cria regras para plataformas digitais'
   },
   {
     id: 'plp-93-2023',
@@ -41,8 +39,7 @@ const votesDataset = [
     abstention: 0,
     stage: 'Sancionado',
     date: '2023-08-30',
-    highlight: 'Estabelece metas de resultado primário',
-    trend: 'up'
+    highlight: 'Estabelece metas de resultado primário'
   },
   {
     id: 'pec-8-2021',
@@ -55,8 +52,7 @@ const votesDataset = [
     abstention: 0,
     stage: 'Em pauta',
     date: '2024-02-20',
-    highlight: 'Insere criminalização na Constituição',
-    trend: 'down'
+    highlight: 'Insere criminalização na Constituição'
   },
   {
     id: 'pl-1143-2023',
@@ -69,8 +65,7 @@ const votesDataset = [
     abstention: 0,
     stage: 'Encaminhado ao Senado',
     date: '2023-08-01',
-    highlight: 'Amplia uso de bens como garantia de crédito',
-    trend: 'up'
+    highlight: 'Amplia uso de bens como garantia de crédito'
   }
 ];
 
@@ -93,11 +88,14 @@ const formatDate = (dateStr) => {
 const VotingDashboard = () => {
   const [selectedChamber, setSelectedChamber] = useState('todos');
 
-  const summary = useMemo(() => {
-    const scopedVotes = selectedChamber === 'todos'
-      ? votesDataset
-      : votesDataset.filter((vote) => vote.chamber === selectedChamber);
+  const scopedVotes = useMemo(() => {
+    if (selectedChamber === 'todos') {
+      return votesDataset;
+    }
+    return votesDataset.filter((vote) => vote.chamber === selectedChamber);
+  }, [selectedChamber]);
 
+  const summary = useMemo(() => {
     const totalVotes = scopedVotes.length;
     const approved = scopedVotes.filter((vote) => vote.stage === 'Aprovado' || vote.stage === 'Sancionado').length;
     const avgAlignment = scopedVotes.reduce((acc, vote) => acc + vote.governmentAlignment, 0) / (totalVotes || 1);
@@ -107,31 +105,26 @@ const VotingDashboard = () => {
       approved,
       avgAlignment
     };
-  }, [selectedChamber]);
+  }, [scopedVotes]);
 
-  const filteredVotes = useMemo(() => {
-    if (selectedChamber === 'todos') {
-      return votesDataset;
-    }
-    return votesDataset.filter((vote) => vote.chamber === selectedChamber);
-  }, [selectedChamber]);
+  const selectedLabel = chambers.find((option) => option.id === selectedChamber)?.label ?? 'todas as casas';
 
   return (
     <section className="dashboard voting-dashboard" aria-label="Principais votações do Congresso">
       <header className="dashboard-header">
-        <div>
-          <h2>Principais votações monitoradas</h2>
+        <div className="dashboard-title">
+          <h2>Radar de votações</h2>
           <p className="dashboard-subtitle">
-            Explore votações estratégicas e identifique tendências de alinhamento entre governo e base parlamentar.
+            Visualize rapidamente o andamento das pautas estratégicas e o apoio que cada uma recebeu nas últimas votações.
           </p>
         </div>
-        <div className="dashboard-filters" role="tablist" aria-label="Filtro por casa legislativa">
+        <div className="dashboard-filters" role="radiogroup" aria-label="Filtro por casa legislativa">
           {chambers.map((option) => (
             <button
               key={option.id}
               type="button"
-              role="tab"
-              aria-selected={selectedChamber === option.id}
+              role="radio"
+              aria-checked={selectedChamber === option.id}
               className={`filter-chip ${selectedChamber === option.id ? 'active' : ''}`}
               onClick={() => setSelectedChamber(option.id)}
             >
@@ -143,74 +136,70 @@ const VotingDashboard = () => {
 
       <div className="dashboard-summary" role="list">
         <div className="summary-card" role="listitem">
-          <span className="summary-label">Votações em destaque</span>
+          <span className="summary-label">Pautas monitoradas</span>
           <strong className="summary-value">{summary.totalVotes}</strong>
+          <span className="summary-detail">Exibindo {selectedLabel.toLowerCase()}</span>
         </div>
         <div className="summary-card" role="listitem">
           <span className="summary-label">Aprovadas</span>
           <strong className="summary-value">{summary.approved}</strong>
+          <span className="summary-detail">{Math.round((summary.approved / (summary.totalVotes || 1)) * 100)}% de sucesso</span>
         </div>
         <div className="summary-card" role="listitem">
-          <span className="summary-label">Alinhamento com o governo</span>
+          <span className="summary-label">Alinhamento médio</span>
           <strong className="summary-value">{Math.round(summary.avgAlignment * 100)}%</strong>
+          <span className="summary-detail">Base governista x oposição</span>
         </div>
       </div>
 
-      <div className="votes-grid">
-        {filteredVotes.map((vote) => {
+      <ul className="vote-list">
+        {scopedVotes.map((vote) => {
           const total = vote.support + vote.against + vote.abstention;
           const supportPercent = Math.round((vote.support / total) * 100);
           const againstPercent = Math.round((vote.against / total) * 100);
           const abstentionPercent = 100 - supportPercent - againstPercent;
+          const alignmentPercent = Math.round(vote.governmentAlignment * 100);
 
           return (
-            <article key={vote.id} className="vote-card">
-              <header className="vote-card-header">
-                <div>
+            <li key={vote.id} className="vote-item">
+              <div className="vote-item-header">
+                <div className="vote-heading">
                   <h3>{vote.title}</h3>
-                  <p className="vote-highlight">{vote.highlight}</p>
+                  <span className="vote-meta">{formatDate(vote.date)} · {vote.chamber}</span>
                 </div>
-                <div className="vote-tags">
-                  <span className="vote-tag">{vote.chamber}</span>
-                  <span className="vote-tag">{vote.topic}</span>
-                  <span className={`vote-tag stage ${vote.stage === 'Em pauta' ? 'warning' : 'success'}`}>
+                <div className="vote-badges">
+                  <span className={`stage-badge ${vote.stage === 'Em pauta' || vote.stage === 'Em tramitação' ? 'stage-warning' : 'stage-success'}`}>
                     {vote.stage}
                   </span>
-                </div>
-              </header>
-
-              <dl className="vote-meta">
-                <div>
-                  <dt>Alinhamento do governo</dt>
-                  <dd>
-                    <span className="vote-alignment">
-                      <span className="alignment-bar" style={{ width: `${vote.governmentAlignment * 100}%` }} />
-                      <span className="alignment-value">{Math.round(vote.governmentAlignment * 100)}%</span>
-                    </span>
-                  </dd>
-                </div>
-                <div>
-                  <dt>Data</dt>
-                  <dd>{formatDate(vote.date)}</dd>
-                </div>
-              </dl>
-
-              <div className="vote-progress" aria-label="Distribuição de votos">
-                <div className="progress-labels">
-                  <span>Favor</span>
-                  <span>Contra</span>
-                  <span>Abstenções</span>
-                </div>
-                <div className="progress-bar">
-                  <span className="bar-segment support" style={{ width: `${supportPercent}%` }} aria-label={`Votos a favor: ${supportPercent}%`} />
-                  <span className="bar-segment against" style={{ width: `${againstPercent}%` }} aria-label={`Votos contra: ${againstPercent}%`} />
-                  <span className="bar-segment abstention" style={{ width: `${abstentionPercent}%` }} aria-label={`Abstenções: ${abstentionPercent}%`} />
+                  <span className="topic-badge">{vote.topic}</span>
                 </div>
               </div>
-            </article>
+
+              <p className="vote-highlight">{vote.highlight}</p>
+
+              <div className="vote-split" role="img" aria-label={`Distribuição de votos em ${vote.title}`}>
+                <span className="split-bar support" style={{ width: `${supportPercent}%` }} />
+                <span className="split-bar against" style={{ width: `${againstPercent}%` }} />
+                <span className="split-bar abstention" style={{ width: `${abstentionPercent}%` }} />
+              </div>
+
+              <div className="vote-stats" aria-hidden="true">
+                <span>Favor {supportPercent}%</span>
+                <span>Contra {againstPercent}%</span>
+                <span>Abstenções {abstentionPercent}%</span>
+              </div>
+
+              <div className="vote-alignment">
+                <span className="metric-label">Alinhamento do governo</span>
+                <div className="alignment-track" role="img" aria-label={`Alinhamento do governo: ${alignmentPercent}%`}>
+                  <span className="alignment-fill" style={{ width: `${alignmentPercent}%` }} />
+                </div>
+                <strong>{alignmentPercent}%</strong>
+              </div>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 };

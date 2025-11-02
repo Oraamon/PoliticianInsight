@@ -106,17 +106,24 @@ const ranges = [
   { id: '365d', label: '12 meses' }
 ];
 
+const trendLabels = {
+  up: 'Tendência de alta',
+  down: 'Queda no interesse',
+  warning: 'Sinal de atenção'
+};
+
 const IssueDashboard = () => {
   const [selectedRange, setSelectedRange] = useState('30d');
   const issues = useMemo(() => issuesDataset[selectedRange] ?? [], [selectedRange]);
+  const selectedRangeLabel = ranges.find((range) => range.id === selectedRange)?.label ?? '';
 
   return (
     <section className="dashboard issue-dashboard" aria-label="Assuntos políticos em evidência">
       <header className="dashboard-header">
-        <div>
-          <h2>Principais assuntos do Congresso</h2>
+        <div className="dashboard-title">
+          <h2>Assuntos em alta</h2>
           <p className="dashboard-subtitle">
-            Monitoramos as discussões que mais impactam a agenda regulatória e sintetizamos sinais acionáveis.
+            Monitoramento simplificado dos temas mais mencionados no Congresso nos últimos {selectedRangeLabel.toLowerCase()}.
           </p>
         </div>
         <div className="dashboard-filters" role="radiogroup" aria-label="Intervalo de análise">
@@ -135,43 +142,44 @@ const IssueDashboard = () => {
         </div>
       </header>
 
-      <div className="issues-grid">
+      <div className="issue-list">
         {issues.map((issue) => (
-          <article key={issue.id} className="issue-card">
+          <article key={issue.id} className="issue-item">
             <header className="issue-header">
               <div>
                 <h3>{issue.title}</h3>
                 <p className="issue-description">{issue.description}</p>
               </div>
-              <span className={`issue-trend ${issue.trend}`} aria-label={`Tendência ${issue.trend}`} />
+              <div className="issue-indicators">
+                <span className={`issue-trend ${issue.trend}`}>{trendLabels[issue.trend]}</span>
+                <span className={`issue-sentiment ${issue.sentiment}`}>{issue.sentiment}</span>
+              </div>
             </header>
 
             <div className="issue-metrics">
               <div>
-                <span className="metric-title">Menções qualificadas</span>
-                <strong className="metric-number">{issue.mentions.toLocaleString('pt-BR')}</strong>
+                <span className="metric-label">Menções qualificadas</span>
+                <strong className="metric-value">{issue.mentions.toLocaleString('pt-BR')}</strong>
               </div>
               <div>
-                <span className="metric-title">Força do tema</span>
-                <div className="metric-progress" aria-label="Intensidade do tema">
-                  <span className="metric-progress-bar" style={{ width: `${issue.intensity}%` }} />
-                  <span className="metric-progress-value">{issue.intensity}%</span>
+                <span className="metric-label">Força do tema</span>
+                <div className="metric-progress" role="img" aria-label={`Força do tema: ${issue.intensity}%`}>
+                  <span className="metric-bar">
+                    <span className="metric-fill" style={{ width: `${issue.intensity}%` }} />
+                  </span>
+                  <span className="metric-number">{issue.intensity}%</span>
                 </div>
-              </div>
-              <div>
-                <span className="metric-title">Sentimento predominante</span>
-                <span className={`metric-chip sentiment ${issue.sentiment}`}>{issue.sentiment}</span>
               </div>
             </div>
 
-            <footer className="issue-footer">
-              <span className="related-title">Votações relacionadas</span>
-              <div className="related-tags">
+            <div className="issue-related">
+              <span className="metric-label">Votações associadas</span>
+              <div className="issue-tags">
                 {issue.relatedVotes.map((vote) => (
-                  <span key={vote} className="related-tag">{vote}</span>
+                  <span key={vote} className="issue-tag">{vote}</span>
                 ))}
               </div>
-            </footer>
+            </div>
           </article>
         ))}
       </div>
