@@ -1,0 +1,14 @@
+.hexagonal-chart-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+}
+
+.hexagonal-chart {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}

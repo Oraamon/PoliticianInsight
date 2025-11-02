@@ -1,0 +1,30 @@
+# Configuração para Google App Engine
+runtime: go121
+
+# Configuração de variáveis de ambiente
+# IMPORTANTE: Para GEMINI_API_KEY, use o Secret Manager para maior segurança
+env_variables:
+  # Porta - App Engine define automaticamente via $PORT
+  PORT: "8080"
+  # GEMINI_API_KEY deve ser configurada via Secret Manager ou editando abaixo (não recomendado)
+  # GEMINI_API_KEY: "sua_chave_aqui"
+
+# Ou use Secret Manager (recomendado para produção):
+# env:
+#   variables:
+#     PORT: "8080"
+#   secret_env_variables:
+#     GEMINI_API_KEY: projects/seu-projeto-id/secrets/gemini-api-key/versions/latest
+
+# Configuração de recursos
+instance_class: F1
+automatic_scaling:
+  min_instances: 1
+  max_instances: 10
+  target_cpu_utilization: 0.6
+
+# Configuração de handlers
+handlers:
+  - url: /.*
+    script: auto
+

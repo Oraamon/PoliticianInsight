@@ -1,0 +1,85 @@
+:root { 
+  /* Modo Noturno (padrão) */
+  --bg: #0b1020; 
+  --panel: #121a2e; 
+  --ink: #e7ecff; 
+  --muted: #9fb0ff33; 
+  --accent: #6ea8ff; 
+  --success: #4ade80;
+  --error: #f87171;
+  --warning: #fbbf24;
+}
+
+.light-mode {
+  /* Modo Claro */
+  --bg: #f5f7fa; 
+  --panel: #ffffff; 
+  --ink: #1a1a1a; 
+  --muted: #e0e7ff; 
+  --accent: #4a90e2; 
+  --success: #22c55e;
+  --error: #ef4444;
+  --warning: #f59e0b;
+}
+
+.dark-mode {
+  /* Modo Noturno - Mais Escuro */
+  --bg: #050810; 
+  --panel: #0a0f1a; 
+  --ink: #e7ecff; 
+  --muted: #9fb0ff22; 
+  --accent: #6ea8ff; 
+  --success: #4ade80;
+  --error: #f87171;
+  --warning: #fbbf24;
+}
+
+* {
+  box-sizing: border-box;
+  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+body {
+  margin: 0;
+  background-image: url('./assets/background.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+  background-repeat: no-repeat;
+  color: var(--ink);
+  font: 16px/1.4 system-ui, Segoe UI, Roboto, Arial, sans-serif;
+  min-height: 100vh;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow: hidden;
+  transition: color 0.3s ease;
+  position: relative;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+  transition: background-color 0.3s ease;
+}
+
+.light-mode body::before {
+  background-color: rgba(245, 247, 250, 0.4);
+}
+
+.dark-mode body::before {
+  background-color: #00000069;
+}
+
+#root {
+  min-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  position: relative;
+}

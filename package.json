@@ -1,0 +1,9 @@
+{
+  "name": "chatbot-politico-gemini",
+  "version": "1.0.0",
+  "description": "Chatbot político neutro e citador de fontes usando API do Gemini",
+  "keywords": ["chatbot", "politica", "gemini", "brasil", "eleicoes"],
+  "author": "",
+  "license": "MIT"
+}
+
