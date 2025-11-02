@@ -6,6 +6,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const prevChatIdRef = useRef(null);
 
   const allSuggestions = [
     'Quem é o presidente atual do Brasil?',
@@ -51,31 +52,94 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     scrollToBottom();
   }, [messages]);
 
+  // Salva mensagens do chat anterior ANTES de mudar de chat
+  useEffect(() => {
+    // Este useEffect só deve executar quando currentChatId muda
+    // Antes de mudar, salva as mensagens do chat anterior se existirem
+    const prevChatId = prevChatIdRef.current;
+    
+    // Se mudou de chat e havia um chat anterior, salva suas mensagens
+    if (prevChatId && prevChatId !== currentChatId) {
+      // Busca as mensagens salvas do chat anterior para garantir que não perdemos nada
+      try {
+        const savedMessages = localStorage.getItem(`chat_${prevChatId}`);
+        // Se há mensagens no estado atual e não havia mensagens salvas, ou se as mensagens atuais são diferentes
+        // Salva as mensagens do estado atual no chat anterior
+        if (messages.length > 0) {
+          const currentMessagesStr = JSON.stringify(messages);
+          // Só salva se as mensagens são diferentes das já salvas
+          if (savedMessages !== currentMessagesStr) {
+            localStorage.setItem(`chat_${prevChatId}`, currentMessagesStr);
+          }
+        }
+      } catch (error) {
+        // Erro ao salvar mensagens do chat anterior
+      }
+    }
+    
+    // Atualiza a referência do chatId anterior DEPOIS de salvar
+    prevChatIdRef.current = currentChatId;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentChatId]);
+
   // Carrega mensagens quando recebe evento de loadChat
   useEffect(() => {
     const handleLoadChat = (event) => {
       const { chatId, messages: loadedMessages } = event.detail;
-      if (loadedMessages && loadedMessages.length > 0) {
-        setMessages(loadedMessages);
-      } else {
-        setMessages([]);
+      // Verifica se o chatId do evento corresponde ao currentChatId atual
+      if (chatId === currentChatId || (!chatId && !currentChatId)) {
+        if (loadedMessages && Array.isArray(loadedMessages) && loadedMessages.length > 0) {
+          setMessages(loadedMessages);
+        } else {
+          setMessages([]);
+        }
       }
     };
 
     window.addEventListener('loadChat', handleLoadChat);
     
-    // Limpa mensagens quando currentChatId muda para null (novo chat)
-    if (!currentChatId) {
+    // Carrega mensagens diretamente quando currentChatId muda
+    if (currentChatId) {
+      try {
+        const savedMessages = localStorage.getItem(`chat_${currentChatId}`);
+        if (savedMessages) {
+          const parsedMessages = JSON.parse(savedMessages);
+          if (Array.isArray(parsedMessages) && parsedMessages.length > 0) {
+            setMessages(parsedMessages);
+          } else {
+            setMessages([]);
+          }
+        } else {
+          setMessages([]);
+        }
+      } catch (error) {
+        setMessages([]);
+      }
+    } else {
+      // Limpa mensagens quando currentChatId é null (novo chat)
       setMessages([]);
     }
     
     return () => window.removeEventListener('loadChat', handleLoadChat);
   }, [currentChatId]);
 
-  // Salva mensagens no localStorage quando mudarem
+  // Salva mensagens no localStorage quando mudarem (mas só se o chatId atual corresponder)
   useEffect(() => {
+    // Só salva se as mensagens não estão vazias e há um currentChatId válido
     if (messages.length > 0 && currentChatId) {
-      localStorage.setItem(`chat_${currentChatId}`, JSON.stringify(messages));
+      // Aguarda um pequeno delay para garantir que não estamos em transição de chat
+      const timeoutId = setTimeout(() => {
+        // Sempre usa currentChatId diretamente para garantir salvamento
+        if (messages.length > 0 && currentChatId) {
+          try {
+            localStorage.setItem(`chat_${currentChatId}`, JSON.stringify(messages));
+          } catch (error) {
+            // Erro ao salvar mensagens
+          }
+        }
+      }, 200);
+      
+      return () => clearTimeout(timeoutId);
     }
   }, [messages, currentChatId]);
 
@@ -117,6 +181,9 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         setCurrentChatId(chatId);
       }
       
+      // Atualiza prevChatIdRef imediatamente para garantir salvamento
+      prevChatIdRef.current = chatId;
+      
       // Adiciona ao histórico
       const chatHistory = JSON.parse(localStorage.getItem('chatHistory') || '[]');
       chatHistory.push({
@@ -134,11 +201,24 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     setInput('');
     setLoading(true);
 
-    // Adiciona a mensagem do usuário imediatamente
-    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
-
-    // Prepara o contexto das mensagens anteriores (antes de adicionar a mensagem atual)
+    // Prepara o contexto das mensagens anteriores (ANTES de adicionar a mensagem atual)
     const context = prepareContext(messages);
+    
+    // Adiciona a mensagem do usuário imediatamente e salva no localStorage
+    const userMessageObj = { role: 'user', content: userMessage };
+    const newMessagesWithUser = [...messages, userMessageObj];
+    
+    // Salva IMEDIATAMENTE no localStorage antes de atualizar o estado
+    if (chatId) {
+      try {
+        localStorage.setItem(`chat_${chatId}`, JSON.stringify(newMessagesWithUser));
+      } catch (error) {
+        // Erro ao salvar mensagem do usuário
+      }
+    }
+    
+    // Atualiza o estado
+    setMessages(newMessagesWithUser);
 
     try {
       const response = await fetch('/api/chat', {
@@ -153,10 +233,25 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       const data = await response.json();
 
       if (data.reply) {
-        setMessages(prev => [...prev, { role: 'assistant', content: data.reply }]);
+        const assistantMessageObj = { role: 'assistant', content: data.reply };
+        const newMessagesWithAssistant = [...newMessagesWithUser, assistantMessageObj];
+        
+        // Salva IMEDIATAMENTE no localStorage antes de atualizar o estado
+        if (chatId) {
+          try {
+            localStorage.setItem(`chat_${chatId}`, JSON.stringify(newMessagesWithAssistant));
+          } catch (error) {
+            // Erro ao salvar mensagem do assistente
+          }
+        }
+        
+        // Atualiza o estado
+        setMessages(newMessagesWithAssistant);
         
         // Verifica se deve gerar gráfico, considerando o contexto das mensagens anteriores
-        const shouldGenerateChart = isPoliticianQuery(userMessage, messages);
+        // Usa as mensagens anteriores + a nova mensagem do usuário
+        const messagesWithUser = [...messages, userMessageObj];
+        const shouldGenerateChart = isPoliticianQuery(userMessage, messagesWithUser);
         if (shouldGenerateChart) {
           // Tenta extrair nome do político da mensagem atual ou do contexto
           let detectedName = extractPoliticianName(userMessage);
@@ -173,17 +268,34 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           }
         }
       } else {
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: 'Desculpe, não consegui processar sua mensagem. Tente novamente.' 
-        }]);
+        const errorMessageObj = { role: 'assistant', content: 'Desculpe, não consegui processar sua mensagem. Tente novamente.' };
+        const newMessagesWithError = [...newMessagesWithUser, errorMessageObj];
+        
+        // Salva no localStorage
+        if (chatId) {
+          try {
+            localStorage.setItem(`chat_${chatId}`, JSON.stringify(newMessagesWithError));
+          } catch (error) {
+            // Erro ao salvar mensagem de erro
+          }
+        }
+        
+        setMessages(newMessagesWithError);
       }
     } catch (error) {
-      console.error('Erro:', error);
-      setMessages(prev => [...prev, { 
-        role: 'assistant', 
-        content: 'Erro ao conectar com o servidor. Verifique sua conexão.' 
-      }]);
+      const errorMessageObj = { role: 'assistant', content: 'Erro ao conectar com o servidor. Verifique sua conexão.' };
+      const newMessagesWithNetworkError = [...newMessagesWithUser, errorMessageObj];
+      
+      // Salva no localStorage
+      if (chatId) {
+        try {
+          localStorage.setItem(`chat_${chatId}`, JSON.stringify(newMessagesWithNetworkError));
+        } catch (err) {
+          // Erro ao salvar mensagem de erro de rede
+        }
+      }
+      
+      setMessages(newMessagesWithNetworkError);
     } finally {
       setLoading(false);
     }
@@ -677,27 +789,27 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       <div className="chat-messages" ref={messagesContainerRef}>
         {messages.length > 0 && <div style={{ flex: '1 1 auto', minHeight: 0 }} />}
         {messages.map((msg, idx) => (
-          <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
-            <div className="message-header">
-              {msg.role === 'user' ? 'Você' : 'Assistente'}
-            </div>
-            {msg.content === 'analysis' && msg.analysisData ? (
-              <div className="message-analysis">
-                <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Análise: {msg.analysisData.politician}</h3>
-                <div style={{ width: '100%', margin: '0 auto', overflow: 'hidden' }}>
-                  <HexagonalChart 
-                    data={msg.analysisData.data} 
-                    politicianName={msg.analysisData.politician}
-                  />
-                </div>
+            <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
+              <div className="message-header">
+                {msg.role === 'user' ? 'Você' : 'Assistente'}
               </div>
-            ) : (
-              <div 
-                className="message-content" 
-                dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-              />
-            )}
-          </div>
+              {msg.content === 'analysis' && msg.analysisData ? (
+                <div className="message-analysis">
+                  <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Análise: {msg.analysisData.politician}</h3>
+                  <div style={{ width: '100%', margin: '0 auto', overflow: 'hidden' }}>
+                    <HexagonalChart 
+                      data={msg.analysisData.data} 
+                      politicianName={msg.analysisData.politician}
+                    />
+                  </div>
+                </div>
+              ) : msg.content ? (
+                <div 
+                  className="message-content" 
+                  dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                />
+              ) : null}
+            </div>
         ))}
         {loading && (
           <div className="message assistant">

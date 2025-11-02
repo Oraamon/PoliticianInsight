@@ -10,11 +10,25 @@ function App() {
   // Carrega chat selecionado
   useEffect(() => {
     if (currentChatId) {
-      const savedMessages = localStorage.getItem(`chat_${currentChatId}`);
-      if (savedMessages) {
-        // Dispara evento para o Chat carregar as mensagens
+      try {
+        const savedMessages = localStorage.getItem(`chat_${currentChatId}`);
+        if (savedMessages) {
+          const parsedMessages = JSON.parse(savedMessages);
+          // Dispara evento para o Chat carregar as mensagens
+          window.dispatchEvent(new CustomEvent('loadChat', { 
+            detail: { chatId: currentChatId, messages: Array.isArray(parsedMessages) ? parsedMessages : [] } 
+          }));
+        } else {
+          // Se não há mensagens salvas, limpa as mensagens
+          window.dispatchEvent(new CustomEvent('loadChat', { 
+            detail: { chatId: currentChatId, messages: [] } 
+          }));
+        }
+      } catch (error) {
+        console.error('Erro ao carregar chat:', error);
+        // Em caso de erro, limpa as mensagens
         window.dispatchEvent(new CustomEvent('loadChat', { 
-          detail: { chatId: currentChatId, messages: JSON.parse(savedMessages) } 
+          detail: { chatId: currentChatId, messages: [] } 
         }));
       }
     } else {
