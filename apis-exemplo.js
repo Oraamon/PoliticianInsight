@@ -113,7 +113,7 @@ async function buscarDadosSenado(query) {
 
 /**
  * Função principal para buscar dados em tempo real
- * Integre esta função no server.js
+ * Exemplo de implementação - já integrado no main.go
  */
 async function buscarDadosTempoReal(query) {
   const resultados = [];
@@ -146,12 +146,8 @@ async function buscarDadosTempoReal(query) {
 }
 
 /**
- * Exemplo de uso no server.js:
- * 
- * // Substitua a função fetchRealTimeData no server.js por:
- * async function fetchRealTimeData(query) {
- *   return await buscarDadosTempoReal(query);
- * }
+ * NOTA: Esta funcionalidade já está implementada no main.go
+ * Este arquivo serve apenas como referência/exemplo
  */
 
 module.exports = {

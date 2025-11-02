@@ -160,11 +160,11 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       })
       .slice(-20); // Limita a 20 mensagens mais recentes para não sobrecarregar a API
     
-    // Converte para o formato esperado pela API (server.js usa 'text', main.go usa 'content')
-    // Vamos usar 'text' para compatibilidade com server.js (que parece ser o principal)
+    // Converte para o formato esperado pela API (Go backend usa 'content', mas aceita 'text' também)
     return validMessages.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'assistant',
-      text: msg.content
+      content: msg.content,
+      text: msg.content // Mantém para compatibilidade
     }));
   };
 
@@ -252,14 +252,31 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         // Usa as mensagens anteriores + a nova mensagem do usuário + a resposta do assistente
         const messagesWithUser = [...messages, userMessageObj];
         const messagesWithBoth = [...messagesWithUser, assistantMessageObj];
-        const shouldGenerateChart = isPoliticianQuery(userMessage, messagesWithBoth);
+        
+        // Verifica se o assistente prometeu gerar um gráfico na resposta
+        const assistantPromisedChart = checkIfAssistantPromisedChart(data.reply);
+        
+        // Verifica se é uma pergunta sobre político (com ou sem palavras-chave de gráfico)
+        const shouldGenerateChart = isPoliticianQuery(userMessage, messagesWithBoth) || assistantPromisedChart;
+        
         if (shouldGenerateChart) {
-          // Tenta extrair nome do político da mensagem atual ou do contexto
+          // Tenta extrair nome do político da mensagem atual
+          // Primeiro tenta com lista conhecida
           let detectedName = extractPoliticianName(userMessage);
           
-          // Se não encontrou nome na mensagem atual, procura no contexto (incluindo mensagem do assistente)
-          if (!detectedName || detectedName === 'Político') {
+          // Se não encontrou na lista conhecida, tenta extrair nome próprio quando há palavras-chave de gráfico/análise
+          if (!detectedName) {
+            detectedName = extractPoliticianNameFromQuery(userMessage);
+          }
+          
+          // Se ainda não encontrou, procura no contexto (incluindo mensagem do assistente)
+          if (!detectedName) {
             detectedName = extractPoliticianNameFromContext(messagesWithBoth, userMessage);
+          }
+          
+          // Se o assistente prometeu gráfico, tenta extrair nome da resposta do assistente também
+          if (!detectedName && assistantPromisedChart) {
+            detectedName = extractPoliticianNameFromAssistantResponse(data.reply);
           }
           
           // Só gera gráfico se detectou um nome válido (não genérico nem palavra comum)
@@ -354,7 +371,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         // Também tenta extrair usando a função extractPoliticianName para mensagens do usuário
         if (msg.role === 'user') {
           const extracted = extractPoliticianName(msg.content);
-          if (extracted && extracted !== 'Político') {
+          if (extracted) {
             return extracted;
           }
         }
@@ -372,6 +389,146 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     return null;
   };
 
+  // Verifica se o assistente prometeu gerar um gráfico na resposta
+  const checkIfAssistantPromisedChart = (assistantReply) => {
+    if (!assistantReply) return false;
+    
+    const lowerReply = assistantReply.toLowerCase();
+    const chartPromises = [
+      'gráfico será gerado', 'grafico será gerado', 'gráfico será apresentado', 'grafico será apresentado',
+      'gerar gráfico', 'gerar grafico', 'apresentar gráfico', 'apresentar grafico',
+      'gráfico hexagonal', 'grafico hexagonal', 'gráfico com', 'grafico com',
+      'a seguir, apresentarei um gráfico', 'seguir, apresentarei um grafico',
+      'apresentarei um gráfico', 'apresentarei um grafico',
+      'gráfico visando fornecer', 'grafico visando fornecer',
+      'aguarde enquanto o gráfico', 'aguarde enquanto o grafico'
+    ];
+    
+    return chartPromises.some(promise => lowerReply.includes(promise));
+  };
+
+  // Extrai nome de político da resposta do assistente
+  const extractPoliticianNameFromAssistantResponse = (reply) => {
+    if (!reply) return null;
+    
+    // Procura por padrões como "nome completo" seguido de palavras como deputado, senador, etc.
+    const patterns = [
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)\s+(?:é|foi|será|tem|tinha|atua como|faz|fez)(?:\s+um)?(?:\s+)(?:deputado|senador|presidente|governador|prefeito|vereador)/i,
+      /(?:deputado|senador|presidente|governador|prefeito|vereador)(?:\s+(?:federal|estadual|municipal))?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)/i,
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)+)(?:\s+(?:é|foi))(?:\s+um)?(?:\s+)(?:deputado|senador)/i
+    ];
+    
+    for (const pattern of patterns) {
+      const match = reply.match(pattern);
+      if (match && match[1]) {
+        const name = match[1].trim();
+        // Verifica se não é palavra comum
+        const commonWords = ['Como', 'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre',
+                            'Com', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
+                            'Quando', 'Porque', 'Por', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Brasileiro',
+                            'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador', 'Sistema'];
+        
+        if (!commonWords.some(word => name.toLowerCase() === word.toLowerCase()) && name.length > 3) {
+          return name;
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  // Extrai nome próprio da query quando há palavras-chave de gráfico/análise ou menção a cargo político
+  const extractPoliticianNameFromQuery = (query) => {
+    const lowerQuery = query.toLowerCase();
+    
+    // Padrões que indicam pedido de gráfico/análise seguido de nome
+    const patterns = [
+      // "me dê um gráfico de Evandro Leitão"
+      /\b(?:me\s+)?(?:dê|de|mostre|mostra|me\s+mostre|me\s+mostra|quero\s+ver|veja)\s+(?:um|o|a)?\s*(?:gráfico|grafico|chart|análise|perfil)\s+(?:de|do|da|sobre)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+      // "gráfico de Evandro Leitão"
+      /\b(?:gráfico|grafico|chart|análise|perfil)\s+(?:de|do|da|sobre)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+      // "Evandro Leitão" (quando há palavra de gráfico antes)
+      /\b(?:me\s+)?(?:dê|de|mostre|mostra|me\s+mostre|me\s+mostra|quero\s+ver|veja)\s+(?:um|o|a)?\s*(?:gráfico|grafico|chart|análise|perfil)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+      // "o que André Fernandes fez como deputado"
+      /\b(?:o\s+que|quem|qual|quais)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:fez|faz|fez e está fazendo|fez e está|fez como|faz como|é|foi)\s+(?:como|um|um?)\s*(?:deputado|senador|presidente|governador|prefeito|vereador)/i,
+      // "André Fernandes é deputado"
+      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:é|foi|será|tem|tinha|atua como|faz|fez)(?:\s+um)?(?:\s+)(?:deputado|senador|presidente|governador|prefeito|vereador)/i,
+      // "deputado André Fernandes"
+      /(?:deputado|senador|presidente|governador|prefeito|vereador)(?:\s+(?:federal|estadual|municipal))?\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+      // "quem é André Fernandes"
+      /\b(?:quem|qual)\s+(?:é|foi|será)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
+    ];
+    
+    for (const pattern of patterns) {
+      const match = query.match(pattern);
+      if (match && match[1]) {
+        const name = match[1].trim();
+        // Palavras comuns que não devem ser consideradas nomes
+        const commonWords = ['Como', 'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre', 
+                            'Com', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
+                            'Quando', 'Porque', 'Por', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Brasileiro',
+                            'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador', 'Sistema'];
+        
+        // Verifica se não é uma palavra comum
+        const nameLower = name.toLowerCase();
+        if (!commonWords.some(word => nameLower === word.toLowerCase())) {
+          // Verifica se tem pelo menos duas palavras (nome próprio) ou uma palavra com mais de 3 caracteres
+          const nameWords = name.split(/\s+/);
+          if (nameWords.length >= 2 || (nameWords.length === 1 && nameWords[0].length > 3)) {
+            return name;
+          }
+        }
+      }
+    }
+    
+    // Fallback: procura por nomes próprios capitalizados após palavras-chave de gráfico/análise
+    const words = query.split(/\s+/);
+    const analysisKeywordIndices = [];
+    
+    // Encontra índices das palavras-chave de análise/gráfico
+    words.forEach((word, index) => {
+      const lowerWord = word.toLowerCase().replace(/[.,!?;:]$/, '');
+      if (['gráfico', 'grafico', 'chart', 'análise', 'perfil', 'dê', 'de', 'mostre', 'mostra'].includes(lowerWord)) {
+        analysisKeywordIndices.push(index);
+      }
+    });
+    
+    // Para cada palavra-chave encontrada, procura nomes próprios próximos
+    for (const idx of analysisKeywordIndices) {
+      // Procura nas próximas 3 palavras após a palavra-chave
+      for (let i = idx + 1; i < Math.min(idx + 4, words.length); i++) {
+        const word = words[i].replace(/[.,!?;:]$/, '');
+        // Verifica se é nome próprio (capitalizado e não é palavra comum)
+        if (word.length > 2 && 
+            word[0] === word[0].toUpperCase() && 
+            word[0] !== word[0].toLowerCase()) {
+          const lowerWord = word.toLowerCase();
+          const commonWords = ['como', 'o', 'a', 'os', 'as', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para', 'sobre',
+                              'com', 'explique', 'fale', 'conte', 'diga', 'informe', 'quem', 'qual', 'quais', 'onde',
+                              'quando', 'porque', 'por', 'que', 'senado', 'câmara', 'congresso', 'brasil', 'brasileiro',
+                              'brasileiros', 'federal', 'nacional', 'republica', 'presidente', 'governador', 'sistema'];
+          
+          if (!commonWords.includes(lowerWord)) {
+            // Tenta combinar com próxima palavra se também for capitalizada
+            let fullName = word;
+            if (i + 1 < words.length) {
+              const nextWord = words[i + 1].replace(/[.,!?;:]$/, '');
+              if (nextWord.length > 2 && 
+                  nextWord[0] === nextWord[0].toUpperCase() && 
+                  nextWord[0] !== nextWord[0].toLowerCase() &&
+                  !commonWords.includes(nextWord.toLowerCase())) {
+                fullName += ' ' + nextWord;
+              }
+            }
+            return fullName;
+          }
+        }
+      }
+    }
+    
+    return null;
+  };
+
   const isPoliticianQuery = (query, messageHistory = []) => {
     const lowerQuery = query.toLowerCase();
     
@@ -379,13 +536,74 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     const contextReferences = ['dele', 'dela', 'desse', 'dessa', 'deles', 'delas', 'disso', 'dessa', 'o gráfico', 'o grafico'];
     const hasContextReference = contextReferences.some(ref => lowerQuery.includes(ref));
     
-    // Se tem referência de contexto E palavra de gráfico/análise, procura no histórico
-    if (hasContextReference && (lowerQuery.includes('gráfico') || lowerQuery.includes('grafico') || lowerQuery.includes('análise') || lowerQuery.includes('perfil'))) {
-      const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
-      if (politicianFromContext && politicianFromContext !== 'Político') {
+    // Nomes de políticos conhecidos (lista restrita - apenas políticos específicos)
+    const knownPoliticians = [
+      'bolsonaro', 'lula', 'ciro', 'marina', 'aecio', 'temer', 'dilma',
+      'doria', 'haddad', 'boulos', 'freixo', 'collor', 'tasso', 'barbosa'
+    ];
+    
+    // Palavras-chave que indicam interesse em ANÁLISE/AVALIAÇÃO do político
+    const analysisKeywords = [
+      'análise', 'avaliação', 'pontos', 'pontos fortes', 'pontos fracos', 'características',
+      'perfil', 'avalie', 'analise', 'gráfico', 'grafico', 'chart', 'mostre', 'mostra', 
+      'dê', 'de', 'me dê', 'me de', 'me mostre', 'me mostra', 'quero ver', 'ver o', 'veja o'
+    ];
+    
+    // Verifica se há palavras-chave de ANÁLISE explícitas
+    const hasAnalysisIntent = analysisKeywords.some(keyword => lowerQuery.includes(keyword));
+    
+    // Verifica se há nomes conhecidos de políticos na query
+    const hasPoliticianName = knownPoliticians.some(name => lowerQuery.includes(name));
+    
+    // Se tem palavras-chave explícitas de gráfico/análise, tenta detectar nome próprio
+    if (hasAnalysisIntent && !hasPoliticianName) {
+      // Tenta extrair nome próprio da query quando há palavras-chave de gráfico/análise
+      const detectedName = extractPoliticianNameFromQuery(query);
+      if (detectedName) {
+        // Se detectou um nome próprio válido com palavras-chave de análise, aceita
         return true;
       }
+      
+      // Se não detectou nome na query, verifica contexto
+      if (hasContextReference) {
+        const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
+        if (politicianFromContext) {
+          return true;
+        }
+      }
+      
+      // Se não encontrou nome nem no contexto, não mostra gráfico
+      return false;
     }
+    
+    // REGRA PRINCIPAL: Sempre exige que haja um político conhecido mencionado OU detectado no contexto
+    // Se não tem nome de político na query, verifica contexto apenas se houver referências explícitas
+    if (!hasPoliticianName) {
+      // Verifica se a pergunta menciona cargos políticos (deputado, senador, etc.) - pode indicar pergunta sobre político específico
+      const politicalRoles = ['deputado', 'senador', 'presidente', 'governador', 'prefeito', 'vereador', 'ministro'];
+      const hasPoliticalRole = politicalRoles.some(role => lowerQuery.includes(role));
+      
+      // Se menciona cargo político, tenta extrair nome próprio
+      if (hasPoliticalRole) {
+        const detectedName = extractPoliticianNameFromQuery(query);
+        if (detectedName) {
+          return true;
+        }
+      }
+      
+      // Só verifica contexto se houver referência explícita (dele, dela, o gráfico, etc.)
+      if (hasContextReference && hasAnalysisIntent) {
+        const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
+        // Só retorna true se encontrou um político válido no contexto
+        if (politicianFromContext) {
+          return true;
+        }
+      }
+      // Se não tem nome de político nem referência de contexto, não mostra gráfico
+      return false;
+    }
+    
+    // Se chegou aqui, TEM nome de político conhecido na query
     
     // Palavras que indicam pergunta sobre NOTÍCIA/AÇÃO (NÃO devem ativar gráfico)
     const newsActionKeywords = [
@@ -401,186 +619,44 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     // Se a pergunta contém palavras de notícia/ação, provavelmente é sobre ação política, não análise
     if (newsActionKeywords.some(keyword => lowerQuery.includes(keyword))) {
       // Mas verifica se também tem palavras de análise explícitas
-      const analysisKeywords = ['análise', 'avaliação', 'pontos', 'pontos fortes', 'pontos fracos', 
-                                'perfil', 'características', 'avalie', 'analise'];
-      const hasAnalysisIntent = analysisKeywords.some(keyword => lowerQuery.includes(keyword));
-      
       if (!hasAnalysisIntent) {
         return false; // É notícia/ação, não análise
       }
     }
     
-    // Palavras-chave que indicam interesse em ANÁLISE/AVALIAÇÃO do político
-    const analysisKeywords = [
-      'análise', 'avaliação', 'pontos', 'pontos fortes', 'pontos fracos', 'características',
-      'perfil', 'avalie', 'analise', 'quais os', 'qual a', 'explique sobre', 'fale sobre',
-      'conte sobre', 'informe sobre', 'diga sobre', 'sobre', 'opinião sobre',
-      'gráfico', 'grafico', 'chart', 'mostre', 'mostra', 'dê', 'de', 'me dê', 'me de',
-      'me mostre', 'me mostra', 'quero ver', 'ver o', 'veja o'
-    ];
-    
-    // Palavras-chave relacionadas a política (mas que podem indicar análise)
-    const politicalKeywords = [
-      'político', 'candidato', 'presidente', 'governador', 'senador',
-      'deputado', 'prefeito', 'vereador', 'política', 'eleições',
-      'eleição', 'campanha', 'votar', 'voto', 'partido', 'mandato'
-    ];
-    
-    // Nomes de políticos conhecidos (caso específico)
-    const knownPoliticians = [
-      'bolsonaro', 'lula', 'ciro', 'marina', 'aecio', 'temer', 'dilma',
-      'doria', 'haddad', 'boulos', 'freixo', 'psol', 'pt', 'psdb', 'mdb',
-      'collor', 'sarney', 'tasso', 'barbosa', 'morales', 'trump', 'biden'
-    ];
-    
-    // Verifica se há palavras-chave de ANÁLISE explícitas (alta prioridade)
-    const hasAnalysisIntent = analysisKeywords.some(keyword => lowerQuery.includes(keyword));
-    
-    // Verifica se há nomes conhecidos de políticos
-    const hasPoliticianName = knownPoliticians.some(name => lowerQuery.includes(name));
-    
-    // Se tem nome de político conhecido e qualquer palavra-chave de análise/gráfico, ativa imediatamente
+    // REGRA: Se tem nome de político conhecido E palavra-chave de análise/gráfico, ativa
     if (hasPoliticianName && hasAnalysisIntent) {
       return true;
     }
     
-    // Se tem nome de político e palavras como "gráfico", "chart", "mostre", "dê", também ativa
-    const graphicKeywords = ['gráfico', 'grafico', 'chart', 'mostre', 'mostra', 'dê', 'de', 'me dê', 'me de', 'me dê o', 'me de o', 'dê-me', 'de-me'];
-    if (hasPoliticianName && graphicKeywords.some(keyword => lowerQuery.includes(keyword))) {
-      return true;
-    }
-    
-    // Se tem apenas nome de político conhecido (sem palavras de análise), MAS há contexto de gráfico/análise anterior
+    // Se tem nome de político mas não tem palavra explícita de análise, verifica contexto recente
     if (hasPoliticianName && !hasAnalysisIntent) {
       // Verifica se há menção de gráfico/análise nas mensagens anteriores recentes (últimas 5 mensagens)
-      const recentMessages = messageHistory.slice(-5).reverse();
+      const recentMessages = messageHistory.slice(-5);
       const hasRecentAnalysisContext = recentMessages.some(msg => {
         if (!msg.content) return false;
         const content = msg.content.toLowerCase();
-        // Verifica tanto nas mensagens do usuário quanto do assistente
         return content.includes('gráfico') || content.includes('grafico') || 
                content.includes('análise') || content.includes('perfil') ||
                content.includes('mostre') || content.includes('mostra') ||
                content.includes('dê') || content.includes('me dê');
       });
-      if (hasRecentAnalysisContext) {
-        return true;
-      }
+      // Só retorna true se há contexto recente de análise
+      return hasRecentAnalysisContext;
     }
     
-    // Se menciona apenas nome de político conhecido (sem outras palavras), considera que pode ser sobre análise
-    // Especialmente útil quando há contexto anterior
-    if (hasPoliticianName && lowerQuery.trim().split(/\s+/).length <= 2) {
-      // Se é apenas o nome ou nome + uma palavra curta, pode ser uma continuação de uma conversa sobre análise
-      const recentMessages = messageHistory.slice(-3).reverse();
-      const hasAnyAnalysisContext = recentMessages.some(msg => {
-        if (!msg.content) return false;
-        const content = msg.content.toLowerCase();
-        return content.includes('gráfico') || content.includes('grafico') || 
-               content.includes('análise') || content.includes('perfil') ||
-               content.includes('análise') || content.includes('avaliação');
-      });
-      if (hasAnyAnalysisContext) {
-        return true;
-      }
-    }
-    
-    // Se tem palavra de gráfico mas não tem nome explícito, verifica contexto
-    if (!hasPoliticianName && (lowerQuery.includes('gráfico') || lowerQuery.includes('grafico'))) {
-      const politicianFromContext = extractPoliticianNameFromContext(messageHistory, query);
-      if (politicianFromContext && politicianFromContext !== 'Político') {
-        return true;
-      }
-      // Se tem "dele", "dela", "desse", etc., e menciona gráfico, também verifica contexto
-      if (hasContextReference) {
-        const politicianFromContextRef = extractPoliticianNameFromContext(messageHistory, query);
-        if (politicianFromContextRef && politicianFromContextRef !== 'Político') {
-          return true;
-        }
-      }
-    }
-    
-    // Palavras comuns que começam com maiúscula mas NÃO são nomes de políticos
-    const commonCapitalizedWords = [
-      'Como', 'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre', 
-      'Com', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
-      'Quando', 'Porque', 'Por', 'Para', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil',
-      'Brasileiro', 'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador'
-    ];
-    
-    // Se tem palavra de análise mas não tem nome, pode ser pergunta genérica
-    if (hasAnalysisIntent && !hasPoliticianName) {
-      // Verifica se há nomes próprios na query (ignorando palavras comuns)
-      const words = query.split(/\s+/);
-      let hasProperNoun = false;
-      for (let i = 1; i < words.length; i++) {
-        const word = words[i].replace(/[.,!?;:]$/, '');
-        if (word.length > 2 && 
-            word[0] === word[0].toUpperCase() && 
-            word[0] !== word[0].toLowerCase() &&
-            !commonCapitalizedWords.includes(word)) {
-          hasProperNoun = true;
-          break;
-        }
-      }
-      // Só retorna true se tem nome próprio E é nome conhecido de político
-      return hasProperNoun && hasPoliticianName;
-    }
-    
-    // Detecta nomes próprios com contexto de análise
-    if (hasPoliticianName) {
-      // Verifica padrões que indicam pergunta sobre pessoa (análise)
-      const personAnalysisPatterns = [
-        /\b(quem|qual|fale|conte|diga|explique|informe)\s+(sobre\s+)?[A-Z][a-z]+/i,
-        /[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+(é|foi|será|tem|tinha|caracteriza|possui)/i,
-        /\b(perfil|características|pontos|análise|avaliação|gráfico|grafico|chart)\s+(de|do|da|sobre)/i,
-        /\b(dê|de|me dê|me de|mostre|mostra|me mostre|me mostra)\s+(o|a|o )?\s*(gráfico|grafico|chart|análise|perfil)\s+(de|do|da|sobre)/i,
-        /\b(quero|ver|veja)\s+(o|a)?\s*(gráfico|grafico|chart|análise|perfil)\s+(de|do|da|sobre)/i
-      ];
-      
-      // Se tem nome de político conhecido e qualquer palavra que sugira gráfico/análise, aceita
-      if (personAnalysisPatterns.some(pattern => pattern.test(query))) {
-        return true;
-      }
-      
-      // Se tem nome de político e qualquer palavra-chave de análise/gráfico, também aceita
-      if (analysisKeywords.some(keyword => lowerQuery.includes(keyword))) {
-        return true;
-      }
-    }
-    
-    // Detecta nomes próprios (palavras capitalizadas que não são início de frase)
-    // Mas só se tiverem palavras-chave que sugerem análise E não são palavras comuns
-    const words = query.split(/\s+/);
-    let capitalizedCount = 0;
-    
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i].replace(/[.,!?;:]$/, '');
-      if (word.length > 2 && 
-          word[0] === word[0].toUpperCase() && 
-          word[0] !== word[0].toLowerCase() &&
-          !commonCapitalizedWords.includes(word)) {
-        capitalizedCount++;
-        if (capitalizedCount >= 1 && i > 0) {
-          // Verifica se tem contexto de análise E se é um político conhecido
-          const analysisContext = ['perfil', 'pontos', 'análise', 'avaliação', 'gráfico', 'grafico'];
-          const hasContext = analysisContext.some(ctx => lowerQuery.includes(ctx));
-          // Só retorna true se tem contexto E é político conhecido
-          return hasContext && hasPoliticianName;
-        }
-      }
-    }
-    
+    // Se não passou por nenhuma das condições acima, não mostra gráfico
     return false;
   };
 
   const extractPoliticianName = (query) => {
     const lowerQuery = query.toLowerCase();
     
-    // Mapeamento de nomes conhecidos para nomes completos
+    // Mapeamento de nomes conhecidos para nomes completos (lista restrita)
     const politicianMap = {
       'lula': 'Lula',
       'luiz inácio lula da silva': 'Lula',
+      'luiz inacio lula da silva': 'Lula',
       'bolsonaro': 'Bolsonaro',
       'jair bolsonaro': 'Bolsonaro',
       'ciro': 'Ciro Gomes',
@@ -590,86 +666,37 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       'aecio': 'Aécio Neves',
       'aécio neves': 'Aécio Neves',
       'temer': 'Michel Temer',
+      'michel temer': 'Michel Temer',
       'dilma': 'Dilma Rousseff',
+      'dilma rousseff': 'Dilma Rousseff',
       'doria': 'João Doria',
+      'joão doria': 'João Doria',
+      'joao doria': 'João Doria',
       'haddad': 'Fernando Haddad',
+      'fernando haddad': 'Fernando Haddad',
       'boulos': 'Guilherme Boulos',
+      'guilherme boulos': 'Guilherme Boulos',
       'freixo': 'Marcelo Freixo',
+      'marcelo freixo': 'Marcelo Freixo',
       'collor': 'Fernando Collor',
+      'fernando collor': 'Fernando Collor',
       'tasso': 'Tasso Jereissati',
-      'barbosa': 'Joaquim Barbosa'
+      'tasso jereissati': 'Tasso Jereissati',
+      'barbosa': 'Joaquim Barbosa',
+      'joaquim barbosa': 'Joaquim Barbosa'
     };
     
     // Verifica mapeamentos diretos primeiro (prioridade)
+    // Só retorna nomes que estão no mapa de políticos conhecidos
     for (const [key, value] of Object.entries(politicianMap)) {
       if (lowerQuery.includes(key)) {
         return value;
       }
     }
     
-    // Palavras comuns que não devem ser consideradas nomes de políticos
-    const commonWords = [
-      'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre', 'Com',
-      'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
-      'Quando', 'Porque', 'Por', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Brasileiro',
-      'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador', 'Sistema',
-      'Funciona', 'Fazer', 'Ter', 'Ser', 'Estar'
-    ];
-    
-    // Extrai nomes próprios da query (ignorando palavras comuns)
-    const words = query.split(/\s+/);
-    const properNouns = [];
-    
-    for (let i = 0; i < words.length; i++) {
-      const word = words[i].replace(/[.,!?;:]$/, '');
-      // Verifica se é nome próprio (capitalizado, não é palavra comum, e não está no início como pergunta)
-      if (word.length > 2 && 
-          word[0] === word[0].toUpperCase() && 
-          word[0] !== word[0].toLowerCase() &&
-          !commonWords.includes(word) &&
-          !['Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual'].includes(word)) {
-        properNouns.push(word);
-      }
-    }
-    
-    // Combina nomes próprios adjacentes (ex: "Luiz Inácio" vira "Luiz Inácio")
-    if (properNouns.length > 0) {
-      // Tenta combinar nomes adjacentes
-      const combinedNames = [];
-      let currentName = properNouns[0];
-      
-      for (let i = 1; i < properNouns.length; i++) {
-        const prevWordIndex = words.findIndex(w => w.includes(properNouns[i-1]));
-        const currentWordIndex = words.findIndex(w => w.includes(properNouns[i]));
-        
-        // Se são adjacentes, combina
-        if (currentWordIndex === prevWordIndex + 1) {
-          currentName += ' ' + properNouns[i];
-        } else {
-          combinedNames.push(currentName);
-          currentName = properNouns[i];
-        }
-      }
-      combinedNames.push(currentName);
-      
-      // Retorna o primeiro nome completo encontrado (geralmente o político)
-      return combinedNames[0] || properNouns[0];
-    }
-    
-    // Fallback: tenta extrair de padrões como "fale sobre X" ou "análise de X"
-    const patterns = [
-      /(?:fale|sobre|análise|avaliação|pontos)\s+(?:sobre\s+|de\s+)?([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)/i,
-      /([A-Z][a-z]+(?:\s+[A-Z][a-z]+)*)\s+(?:é|foi|será|tem|tinha)/i
-    ];
-    
-    for (const pattern of patterns) {
-      const match = query.match(pattern);
-      if (match && match[1]) {
-        return match[1].trim();
-      }
-    }
-    
-    return 'Político';
+    // Se não encontrou nenhum político conhecido, retorna null
+    // Isso evita falsos positivos com nomes próprios genéricos
+    return null;
   };
 
   const generateAnalysis = (query, politicianName = null, messageHistory = null) => {
@@ -677,18 +704,18 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     const historyToUse = messageHistory || messages;
     
     // Se não recebeu nome, tenta extrair da query atual
-    if (!detectedPolitician || detectedPolitician === 'Político') {
+    if (!detectedPolitician) {
       detectedPolitician = extractPoliticianName(query);
     }
     
     // Se ainda não encontrou, tenta no contexto das mensagens
-    if (!detectedPolitician || detectedPolitician === 'Político') {
+    if (!detectedPolitician) {
       // Usa o histórico fornecido ou o estado atual de mensagens
       detectedPolitician = extractPoliticianNameFromContext(historyToUse, query);
     }
     
-    // Verificação de segurança: não gera gráfico se o nome for genérico ou palavra comum
-    const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Federal', null];
+    // Verificação de segurança: não gera gráfico se o nome for genérico, palavra comum ou null
+    const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Federal'];
     if (!detectedPolitician || genericNames.includes(detectedPolitician)) {
       return; // Não gera gráfico se não identificou um político válido
     }

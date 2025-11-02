@@ -28,9 +28,9 @@ Visualização hexagonal mostra:
 
 ```
 CHAT_BOT/
-├── main.go                 # API Go (Backend)
+├── main.go                 # API Go (Backend completo)
 ├── go.mod                  # Dependências Go
-├── public/                 # Arquivos estáticos originais
+├── public/                 # Arquivos estáticos
 ├── frontend/               # App React
 │   ├── src/
 │   │   ├── App.jsx         # App principal
@@ -39,7 +39,6 @@ CHAT_BOT/
 │   │       └── HexagonalChart.jsx  # Gráfico hexagonal
 │   ├── vite.config.js
 │   └── package.json
-├── server.js               # Backend original (Node.js)
 └── env.example
 ```
 
