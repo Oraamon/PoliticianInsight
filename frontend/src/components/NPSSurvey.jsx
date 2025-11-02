@@ -75,6 +75,9 @@ const NPSSurvey = () => {
   const [submitted, setSubmitted] = useState(false);
   const [submittedAt, setSubmittedAt] = useState(null);
   const [error, setError] = useState('');
+  const [showDetails, setShowDetails] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
 
   useEffect(() => {
     const loadStoredSurvey = () => {
@@ -101,8 +104,10 @@ const NPSSurvey = () => {
           setSelectedScore(parsed.score ?? null);
           setFeedback(parsed.feedback ?? '');
           setSelectedReasons(Array.isArray(parsed.reasons) ? parsed.reasons : []);
-          setSubmitted(Boolean(parsed.submitted));
+          const isSubmitted = Boolean(parsed.submitted);
+          setSubmitted(isSubmitted);
           setSubmittedAt(parsed.submittedAt ?? null);
+          setShowDetails(isSubmitted);
         }
       } catch (error) {
         // ignora armazenamento inválido
@@ -153,6 +158,50 @@ const NPSSurvey = () => {
     return reasonCatalog[classification] ?? [];
   }, [classification]);
 
+  const recommendedFeedbackLength = useMemo(() => {
+    if (classification === 'detrator') return 25;
+    if (classification === 'promotor') return 35;
+    if (classification === 'neutro') return 20;
+    return 18;
+  }, [classification]);
+
+  const steps = useMemo(() => {
+    return [
+      {
+        id: 'score',
+        label: 'Nota',
+        complete: selectedScore !== null
+      },
+      {
+        id: 'reasons',
+        label: 'Motivos',
+        complete: selectedReasons.length > 0,
+        disabled: !classification
+      },
+      {
+        id: 'feedback',
+        label: 'Detalhes',
+        complete:
+          feedback.trim().length >= recommendedFeedbackLength || (classification === 'detrator' && selectedReasons.length > 0),
+        disabled: selectedScore === null
+      }
+    ];
+  }, [classification, feedback, recommendedFeedbackLength, selectedReasons, selectedScore]);
+
+  const activeStep = useMemo(() => {
+    const firstIncomplete = steps.find((step) => !step.complete && !step.disabled);
+    if (firstIncomplete) return firstIncomplete.id;
+    const firstEnabled = steps.find((step) => !step.disabled);
+    return firstEnabled ? firstEnabled.id : steps[0].id;
+  }, [steps]);
+
+  const completedSteps = useMemo(() => steps.filter((step) => step.complete).length, [steps]);
+  const progress = useMemo(() => {
+    const totalSteps = steps.length;
+    if (totalSteps === 0) return 0;
+    return Math.round((completedSteps / totalSteps) * 100);
+  }, [completedSteps, steps]);
+
   useEffect(() => {
     if (!classification) {
       setSelectedReasons([]);
@@ -163,6 +212,19 @@ const NPSSurvey = () => {
   }, [availableReasons, classification]);
 
   const gaugeValue = selectedScore === null ? 0 : Math.round((selectedScore / 10) * 100);
+
+  const feedbackLength = feedback.trim().length;
+
+  const surveyPayload = useMemo(
+    () => ({
+      score: selectedScore,
+      classification,
+      reasons: selectedReasons,
+      feedback,
+      submittedAt
+    }),
+    [classification, feedback, selectedReasons, selectedScore, submittedAt]
+  );
 
   const handleScoreSelect = (score) => {
     setSelectedScore(score);
@@ -198,6 +260,7 @@ const NPSSurvey = () => {
     setSubmitted(true);
     setSubmittedAt(new Date().toISOString());
     setError('');
+    setShowDetails(true);
   };
 
   const resetSurvey = () => {
@@ -207,6 +270,9 @@ const NPSSurvey = () => {
     setSubmitted(false);
     setSubmittedAt(null);
     setError('');
+    setShowDetails(false);
+    setCopied(false);
+    setCopyError('');
   };
 
   const formattedDate = useMemo(() => {
@@ -227,6 +293,22 @@ const NPSSurvey = () => {
   const placeholder = classification ? placeholderByClassification[classification] : 'Conte-nos o que podemos aprimorar.';
   const copy = classification ? classificationCopy[classification] : null;
 
+  const handleCopyResponse = async () => {
+    setCopyError('');
+    if (typeof navigator === 'undefined' || !navigator.clipboard) {
+      setCopyError('Copie o conteúdo do resumo manualmente caso seu navegador não permita copiar automaticamente.');
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(surveyPayload, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } catch (error) {
+      setCopyError('Não foi possível copiar automaticamente. Copie manualmente o resumo exibido.');
+    }
+  };
+
   return (
     <section className="nps-card" aria-label="Pesquisa de satisfação NPS da ÁgoraAI">
       <header className="nps-header">
@@ -244,12 +326,41 @@ const NPSSurvey = () => {
         )}
       </header>
 
+      <div className="nps-progress" role="group" aria-label="Etapas da pesquisa">
+        <div className="nps-progress-track" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+          <div className="nps-progress-bar" style={{ width: `${progress}%` }} />
+        </div>
+        <ul className="nps-progress-steps">
+          {steps.map((step) => {
+            const status = step.complete ? 'done' : step.id === activeStep ? 'active' : 'pending';
+            return (
+              <li key={step.id} className={`nps-progress-step ${status}`} aria-current={status === 'active' ? 'step' : undefined}>
+                <span>{step.label}</span>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+
       {submitted ? (
         <div className="nps-thankyou" role="status">
           <h3>Obrigado por apoiar a ÁgoraAI!</h3>
           <p>
             Nota <strong>{selectedScore}</strong> · {copy?.label ?? 'Feedback registrado'}
           </p>
+          <div className="nps-thankyou-actions">
+            <button type="button" className="nps-details-toggle" onClick={() => setShowDetails((prev) => !prev)}>
+              {showDetails ? 'Ocultar resumo da resposta' : 'Ver resumo da resposta'}
+            </button>
+            <button type="button" className="nps-details-toggle secondary" onClick={handleCopyResponse}>
+              {copied ? 'Resumo copiado!' : 'Copiar resposta'}
+            </button>
+          </div>
+          {copyError && (
+            <p className="nps-error" role="alert">
+              {copyError}
+            </p>
+          )}
           {selectedReasons.length > 0 && (
             <div className="nps-reason-list">
               <span>Motivos destacados:</span>
@@ -269,6 +380,38 @@ const NPSSurvey = () => {
           <p className="nps-followup">
             Nossa equipe de produto acompanha cada resposta semanalmente para destravar entregas prioritárias.
           </p>
+          {showDetails && (
+            <div className="nps-details" aria-live="polite">
+              <div className="nps-details-grid">
+                <div>
+                  <span className="nps-details-label">Nota registrada</span>
+                  <strong className="nps-details-value">{surveyPayload.score ?? '--'}</strong>
+                </div>
+                <div>
+                  <span className="nps-details-label">Classificação</span>
+                  <strong className="nps-details-value">{copy?.label ?? '—'}</strong>
+                </div>
+                <div>
+                  <span className="nps-details-label">Motivos</span>
+                  <strong className="nps-details-value">
+                    {surveyPayload.reasons?.length ? surveyPayload.reasons.join(', ') : 'Não selecionado'}
+                  </strong>
+                </div>
+                <div>
+                  <span className="nps-details-label">Comentário</span>
+                  <strong className="nps-details-value">{surveyPayload.feedback || 'Não informado'}</strong>
+                </div>
+                <div>
+                  <span className="nps-details-label">Carimbo de data</span>
+                  <strong className="nps-details-value">{formattedDate ?? 'Não registrado'}</strong>
+                </div>
+              </div>
+              <p className="nps-saved-hint">
+                Para consultar ou limpar manualmente, acesse o armazenamento local do navegador (localStorage) e busque pela chave
+                <code>agoraai-nps-v1</code>.
+              </p>
+            </div>
+          )}
         </div>
       ) : (
         <form className="nps-form" onSubmit={handleSubmit} noValidate>
@@ -349,8 +492,17 @@ const NPSSurvey = () => {
             value={feedback}
             onChange={(event) => setFeedback(event.target.value)}
             placeholder={placeholder}
-            rows={4}
+            rows={5}
+            maxLength={600}
           />
+          <div className="nps-feedback-meta">
+            <span>
+              {feedbackLength < recommendedFeedbackLength
+                ? `Conte um pouco mais (${feedbackLength}/${recommendedFeedbackLength} sugeridos).`
+                : 'Excelente! Obrigado por compartilhar mais contexto.'}
+            </span>
+            <span>{feedback.length}/600</span>
+          </div>
 
           {error && (
             <p className="nps-error" role="alert">
@@ -358,9 +510,14 @@ const NPSSurvey = () => {
             </p>
           )}
 
-          <button type="submit" className="nps-submit" disabled={selectedScore === null}>
-            Enviar avaliação
-          </button>
+          <div className="nps-form-actions">
+            <button type="submit" className="nps-submit" disabled={selectedScore === null}>
+              Enviar avaliação
+            </button>
+            <span className="nps-saved-hint">
+              As respostas ficam salvas apenas no seu navegador até que você apague ou envie uma nova avaliação.
+            </span>
+          </div>
         </form>
       )}
     </section>

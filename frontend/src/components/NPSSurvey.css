@@ -1,6 +1,6 @@
 .nps-card {
-  background: rgba(9, 22, 45, 0.9);
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: linear-gradient(160deg, rgba(9, 22, 45, 0.9) 0%, rgba(12, 30, 58, 0.78) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 24px;
   padding: 32px;
   display: flex;
@@ -30,6 +30,77 @@
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.6;
   max-width: 520px;
+}
+
+.nps-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.nps-progress-track {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  position: relative;
+  overflow: hidden;
+}
+
+.nps-progress-bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--accent), #8b5cf6);
+  transition: width 0.35s ease;
+}
+
+.nps-progress-steps {
+  list-style: none;
+  display: flex;
+  justify-content: space-between;
+  padding: 0;
+  margin: 0;
+  gap: 12px;
+}
+
+.nps-progress-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.nps-progress-step::before {
+  content: '';
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+  transition: all 0.3s ease;
+}
+
+.nps-progress-step.done {
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.nps-progress-step.done::before {
+  background: var(--accent);
+  box-shadow: 0 0 0 2px rgba(110, 168, 255, 0.25);
+}
+
+.nps-progress-step.active {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.nps-progress-step.active::before {
+  background: #8b5cf6;
+  box-shadow: 0 0 0 4px rgba(139, 92, 246, 0.24);
+  transform: scale(1.1);
 }
 
 .nps-reset {
@@ -247,11 +318,25 @@
   box-shadow: 0 0 0 4px rgba(110, 168, 255, 0.18);
 }
 
+.nps-feedback-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
 .nps-error {
   margin: 0;
   color: #ff8a80;
   font-size: 0.9rem;
   font-weight: 500;
+}
+
+.nps-form-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .nps-submit {
@@ -291,6 +376,74 @@
 .nps-thankyou h3 {
   margin: 0;
   color: var(--ink);
+}
+
+.nps-thankyou-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nps-details-toggle {
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.9);
+  padding: 10px 20px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.nps-details-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.nps-details-toggle.secondary {
+  background: transparent;
+}
+
+.nps-details {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.nps-details-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px 18px;
+}
+
+.nps-details-label {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.nps-details-value {
+  display: block;
+  margin-top: 4px;
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.92);
+  word-break: break-word;
+}
+
+.nps-saved-hint {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.nps-saved-hint code {
+  font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.8);
 }
 
 .nps-reason-list {
@@ -346,5 +499,19 @@
 
   .nps-scale {
     grid-template-columns: repeat(auto-fit, minmax(48px, 1fr));
+  }
+
+  .nps-progress-steps {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .nps-thankyou-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .nps-details-grid {
+    grid-template-columns: 1fr;
   }
 }
