@@ -181,8 +181,8 @@
   overflow-x: hidden;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 100px 42px 140px 42px;
+  gap: 24px;
+  padding: 60px 42px 180px 42px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
   position: relative;
@@ -198,6 +198,23 @@
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border-radius: 4px;
+}
+
+.nps-wrapper {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 768px) {
+  .chat-messages {
+    padding: 60px 20px 200px 20px;
+    gap: 20px;
+  }
+
+  .nps-wrapper {
+    margin-bottom: 32px;
+  }
 }
 
 .chat-messages::-webkit-scrollbar-thumb {

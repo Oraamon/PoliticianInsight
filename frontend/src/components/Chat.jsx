@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import HexagonalChart from './HexagonalChart';
+import InsightsOverview from './InsightsOverview';
+import NPSSurvey from './NPSSurvey';
 import './Chat.css';
 
 const Chat = ({ currentChatId, setCurrentChatId }) => {
@@ -843,6 +845,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const userMessageCount = messages.filter(msg => msg.role === 'user').length;
   const showHeader = userMessageCount === 0;
   const showSuggestions = userMessageCount === 0;
+  const showNpsSurvey = !showSuggestions;
 
 
   const handleSuggestionClick = (suggestion) => {
@@ -864,7 +867,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         </div>
       )}
       <div className="chat-messages" ref={messagesContainerRef}>
-        {messages.length > 0 && <div style={{ flex: '1 1 auto', minHeight: 0 }} />}
+        <InsightsOverview showHeader={showHeader} />
         {messages.map((msg, idx) => (
             <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
               <div className="message-header">
@@ -894,6 +897,11 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
             <div className="message-content">
               <div className="loading-spinner"></div> Pensando...
             </div>
+          </div>
+        )}
+        {showNpsSurvey && (
+          <div className="nps-wrapper">
+            <NPSSurvey />
           </div>
         )}
       </div>

@@ -1,0 +1,121 @@
+.insights-overview {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+  padding: 32px 42px 16px 42px;
+  background: rgba(7, 19, 38, 0.45);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 28px;
+  box-shadow: 0 24px 60px rgba(7, 19, 38, 0.35);
+  position: relative;
+  z-index: 2;
+}
+
+.insights-overview.with-header {
+  margin-top: 140px;
+}
+
+.insights-hero {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 32px;
+  align-items: stretch;
+}
+
+.insights-intro h1 {
+  margin: 0;
+  font-size: 2rem;
+  color: var(--ink);
+}
+
+.insights-intro p {
+  margin-top: 12px;
+  font-size: 1.1rem;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.insights-badges {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 24px;
+}
+
+.insight-badge {
+  background: rgba(110, 168, 255, 0.12);
+  color: var(--accent);
+  padding: 10px 16px;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.insights-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.insights-metric {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.insights-metric.positive {
+  border-color: rgba(74, 222, 128, 0.45);
+}
+
+.insights-metric.warning {
+  border-color: rgba(250, 204, 21, 0.45);
+}
+
+.metric-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.metric-value {
+  font-size: 2rem;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.metric-detail {
+  font-size: 0.95rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+@media (max-width: 1200px) {
+  .insights-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-overview {
+    padding: 28px 24px 16px 24px;
+  }
+}
+
+@media (max-width: 768px) {
+  .insights-overview {
+    margin-top: 100px;
+    gap: 24px;
+  }
+
+  .insights-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .insights-intro h1 {
+    font-size: 1.6rem;
+  }
+}
