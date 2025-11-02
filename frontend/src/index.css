@@ -46,6 +46,7 @@ body {
   background-position: center;
   background-attachment: fixed;
   background-repeat: no-repeat;
+  background-color: var(--bg);
   color: var(--ink);
   font: 16px/1.4 system-ui, Segoe UI, Roboto, Arial, sans-serif;
   min-height: 100vh;
@@ -70,7 +71,7 @@ body::before {
 }
 
 .light-mode body::before {
-  background-color: rgba(245, 247, 250, 0.4);
+  background-color: rgba(241, 245, 249, 0.88);
 }
 
 .dark-mode body::before {

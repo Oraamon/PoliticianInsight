@@ -7,24 +7,26 @@
 .issue-item {
   padding: 18px;
   border-radius: 16px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #ffffff;
+  border: 1px solid rgba(203, 213, 225, 0.7);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: 0 20px 36px rgba(148, 163, 184, 0.2);
 }
 
 .issue-item:hover {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: rgba(59, 130, 246, 0.35);
+  box-shadow: 0 24px 46px rgba(59, 130, 246, 0.15);
 }
 
 .light-mode .issue-item {
-  background: rgba(15, 23, 42, 0.02);
-  border-color: rgba(15, 23, 42, 0.08);
+  background: #ffffff;
+  border-color: rgba(203, 213, 225, 0.8);
 }
 
 .light-mode .issue-item:hover {
-  border-color: rgba(15, 23, 42, 0.18);
+  border-color: rgba(59, 130, 246, 0.4);
 }
 
 .issue-header {

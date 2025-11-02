@@ -1,13 +1,30 @@
 .nps-card {
-  background: linear-gradient(160deg, rgba(9, 22, 45, 0.9) 0%, rgba(12, 30, 58, 0.78) 100%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  --nps-surface: #ffffff;
+  --nps-surface-alt: #f3f6fb;
+  --nps-border: rgba(203, 213, 225, 0.9);
+  --nps-border-soft: rgba(226, 232, 240, 0.7);
+  --nps-text-strong: #0f172a;
+  --nps-text-body: rgba(71, 85, 105, 0.85);
+  --nps-text-muted: rgba(100, 116, 139, 0.65);
+  --nps-highlight-bg: rgba(59, 130, 246, 0.12);
+  --nps-highlight-border: rgba(59, 130, 246, 0.32);
+  --nps-highlight-text: #1d4ed8;
+  --nps-shadow: 0 26px 54px rgba(148, 163, 184, 0.22);
+  background: linear-gradient(155deg, var(--nps-surface) 0%, var(--nps-surface-alt) 100%);
+  border: 1px solid var(--nps-border);
   border-radius: 24px;
   padding: 32px;
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  box-shadow: 0 24px 60px rgba(3, 12, 26, 0.45);
-  backdrop-filter: blur(12px);
+  gap: 28px;
+  box-shadow: var(--nps-shadow);
+  color: var(--nps-text-strong);
+}
+
+.dark-mode .nps-card {
+  --nps-border: rgba(148, 163, 184, 0.45);
+  --nps-border-soft: rgba(148, 163, 184, 0.55);
+  --nps-shadow: 0 28px 60px rgba(15, 23, 42, 0.4);
 }
 
 .nps-header {
@@ -20,14 +37,14 @@
 
 .nps-header h2 {
   margin: 0;
-  color: var(--ink);
-  font-size: 1.75rem;
+  font-size: 1.8rem;
   letter-spacing: -0.01em;
+  color: var(--nps-text-strong);
 }
 
 .nps-header p {
   margin: 10px 0 0 0;
-  color: rgba(255, 255, 255, 0.78);
+  color: var(--nps-text-body);
   line-height: 1.6;
   max-width: 520px;
 }
@@ -42,7 +59,7 @@
   width: 100%;
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--nps-border-soft);
   position: relative;
   overflow: hidden;
 }
@@ -67,9 +84,9 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 0.85rem;
+  font-size: 0.82rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--nps-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
@@ -79,22 +96,22 @@
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.14);
+  background: var(--nps-border-soft);
+  box-shadow: 0 0 0 2px rgba(148, 163, 184, 0.25);
   transition: all 0.3s ease;
 }
 
 .nps-progress-step.done {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--nps-text-body);
 }
 
 .nps-progress-step.done::before {
   background: var(--accent);
-  box-shadow: 0 0 0 2px rgba(110, 168, 255, 0.25);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18);
 }
 
 .nps-progress-step.active {
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--nps-text-strong);
 }
 
 .nps-progress-step.active::before {
@@ -104,9 +121,9 @@
 }
 
 .nps-reset {
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  color: rgba(255, 255, 255, 0.92);
+  background: transparent;
+  border: 1px solid var(--nps-border);
+  color: var(--nps-text-strong);
   border-radius: 999px;
   padding: 10px 18px;
   font-weight: 600;
@@ -120,7 +137,7 @@
 .nps-reset:hover {
   border-color: var(--accent);
   color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(110, 168, 255, 0.18);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
 }
 
 .nps-form fieldset {
@@ -129,13 +146,13 @@
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 16px;
 }
 
 .nps-form legend {
   font-size: 1.05rem;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--nps-text-strong);
 }
 
 .nps-score-panel {
@@ -149,8 +166,8 @@
   width: 140px;
   height: 140px;
   border-radius: 20px;
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-  position: relative;
+  background: var(--nps-surface-alt);
+  border: 1px solid var(--nps-border);
   display: grid;
   place-items: center;
 }
@@ -162,7 +179,7 @@
 
 .nps-gauge-track {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.14);
+  stroke: var(--nps-border-soft);
   stroke-width: 12;
 }
 
@@ -178,7 +195,7 @@
 }
 
 .nps-gauge-score {
-  fill: rgba(255, 255, 255, 0.92);
+  fill: var(--nps-text-strong);
   font-size: 2rem;
   font-weight: 700;
   text-anchor: middle;
@@ -190,7 +207,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--nps-text-muted);
 }
 
 .nps-scale {
@@ -204,40 +221,43 @@
 .nps-score {
   height: 46px;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.04);
-  color: rgba(255, 255, 255, 0.86);
+  border: 1px solid var(--nps-border);
+  background: var(--nps-surface);
+  color: var(--nps-text-strong);
   font-size: 1.1rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.05);
 }
 
 .nps-score:hover {
-  border-color: rgba(255, 255, 255, 0.45);
-  transform: translateY(-2px);
+  border-color: var(--accent);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(59, 130, 246, 0.15);
 }
 
 .nps-score.selected {
   background: linear-gradient(135deg, var(--accent), #8b5cf6);
-  color: #0a1324;
+  color: #ffffff;
   border-color: transparent;
-  box-shadow: 0 12px 24px rgba(110, 168, 255, 0.32);
+  box-shadow: 0 16px 28px rgba(110, 168, 255, 0.25);
 }
 
 .nps-description {
   font-size: 0.92rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--nps-text-body);
 }
 
 .nps-classification {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--nps-surface-alt);
   border-radius: 16px;
   padding: 14px 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  color: rgba(255, 255, 255, 0.88);
+  color: var(--nps-text-strong);
+  border: 1px solid var(--nps-border);
 }
 
 .nps-classification strong {
@@ -247,12 +267,12 @@
 
 .nps-classification span {
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--nps-text-body);
 }
 
 .nps-label {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--nps-text-strong);
   display: flex;
   align-items: center;
   gap: 8px;
@@ -260,7 +280,7 @@
 
 .nps-label small {
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--nps-text-muted);
 }
 
 .nps-reasons {
@@ -277,9 +297,9 @@
 
 .nps-reason {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--nps-border);
+  background: var(--nps-surface);
+  color: var(--nps-text-body);
   padding: 8px 16px;
   font-size: 0.9rem;
   font-weight: 500;
@@ -288,46 +308,48 @@
 }
 
 .nps-reason:hover {
-  border-color: rgba(255, 255, 255, 0.5);
-  transform: translateY(-1px);
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 6px 18px rgba(59, 130, 246, 0.18);
 }
 
 .nps-reason.selected {
-  background: rgba(110, 168, 255, 0.18);
-  border-color: var(--accent);
-  color: var(--accent);
-  box-shadow: inset 0 0 0 1px rgba(110, 168, 255, 0.35);
+  background: var(--nps-highlight-bg);
+  border-color: var(--nps-highlight-border);
+  color: var(--nps-highlight-text);
+  box-shadow: inset 0 0 0 1px var(--nps-highlight-border);
 }
 
 .nps-form textarea {
   width: 100%;
   resize: vertical;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: var(--nps-surface);
+  border: 1px solid var(--nps-border);
   border-radius: 18px;
   padding: 18px;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--nps-text-body);
   font-size: 1rem;
   line-height: 1.5;
   transition: border 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: inset 0 2px 6px rgba(148, 163, 184, 0.2);
 }
 
 .nps-form textarea:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 4px rgba(110, 168, 255, 0.18);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.18);
 }
 
 .nps-feedback-meta {
   display: flex;
   justify-content: space-between;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--nps-text-muted);
 }
 
 .nps-error {
   margin: 0;
-  color: #ff8a80;
+  color: #dc2626;
   font-size: 0.9rem;
   font-weight: 500;
 }
@@ -345,7 +367,7 @@
   border: none;
   border-radius: 999px;
   padding: 12px 28px;
-  color: #071326;
+  color: #ffffff;
   font-weight: 700;
   cursor: pointer;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -363,19 +385,20 @@
 }
 
 .nps-thankyou {
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--nps-surface);
   border-radius: 20px;
   padding: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--nps-border);
+  color: var(--nps-text-strong);
   display: flex;
   flex-direction: column;
   gap: 16px;
+  box-shadow: 0 18px 42px rgba(148, 163, 184, 0.16);
 }
 
 .nps-thankyou h3 {
   margin: 0;
-  color: var(--ink);
+  color: var(--nps-text-strong);
 }
 
 .nps-thankyou-actions {
@@ -386,28 +409,29 @@
 
 .nps-details-toggle {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(255, 255, 255, 0.08);
-  color: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--nps-border);
+  background: var(--nps-surface);
+  color: var(--nps-text-strong);
   padding: 10px 20px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
-.nps-details-toggle:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-
 .nps-details-toggle.secondary {
   background: transparent;
 }
 
+.nps-details-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  box-shadow: 0 10px 18px rgba(59, 130, 246, 0.18);
+}
+
 .nps-details {
-  background: rgba(0, 0, 0, 0.25);
+  background: var(--nps-surface-alt);
   border-radius: 18px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--nps-border);
   padding: 18px;
   display: flex;
   flex-direction: column;
@@ -424,26 +448,26 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--nps-text-muted);
 }
 
 .nps-details-value {
   display: block;
   margin-top: 4px;
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--nps-text-strong);
   word-break: break-word;
 }
 
 .nps-saved-hint {
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.6);
+  color: var(--nps-text-muted);
 }
 
 .nps-saved-hint code {
   font-family: 'IBM Plex Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
   font-size: 0.8rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--nps-text-strong);
 }
 
 .nps-reason-list {
@@ -451,7 +475,7 @@
   flex-direction: column;
   gap: 6px;
   font-size: 0.95rem;
-  color: rgba(255, 255, 255, 0.8);
+  color: var(--nps-text-body);
 }
 
 .nps-reason-list ul {
@@ -462,7 +486,7 @@
 .nps-feedback-quote {
   margin: 0;
   font-style: italic;
-  color: rgba(255, 255, 255, 0.82);
+  color: var(--nps-text-body);
   border-left: 3px solid var(--accent);
   padding-left: 12px;
 }
@@ -470,13 +494,13 @@
 .nps-timestamp {
   margin: 0;
   font-size: 0.85rem;
-  color: rgba(255, 255, 255, 0.65);
+  color: var(--nps-text-muted);
 }
 
 .nps-followup {
   margin: 0;
   font-size: 0.92rem;
-  color: rgba(255, 255, 255, 0.72);
+  color: var(--nps-text-body);
 }
 
 @media (max-width: 768px) {

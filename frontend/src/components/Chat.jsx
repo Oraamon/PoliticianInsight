@@ -867,43 +867,45 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         </div>
       )}
       <div className="chat-messages" ref={messagesContainerRef}>
-        <InsightsOverview showHeader={showHeader} />
-        {messages.map((msg, idx) => (
-            <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
-              <div className="message-header">
-                {msg.role === 'user' ? 'Você' : 'ÁgoraAI'}
-              </div>
-              {msg.content === 'analysis' && msg.analysisData ? (
-                <div className="message-analysis">
-                  <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Análise: {msg.analysisData.politician}</h3>
-                  <div style={{ width: '100%', margin: '0 auto', overflow: 'hidden' }}>
-                    <HexagonalChart 
-                      data={msg.analysisData.data} 
-                      politicianName={msg.analysisData.politician}
-                    />
-                  </div>
+        <div className="chat-stream">
+          <InsightsOverview showHeader={showHeader} />
+          {messages.map((msg, idx) => (
+              <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
+                <div className="message-header">
+                  {msg.role === 'user' ? 'Você' : 'ÁgoraAI'}
                 </div>
-              ) : msg.content ? (
-                <div 
-                  className="message-content" 
-                  dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
-                />
-              ) : null}
+                {msg.content === 'analysis' && msg.analysisData ? (
+                  <div className="message-analysis">
+                    <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Análise: {msg.analysisData.politician}</h3>
+                    <div style={{ width: '100%', margin: '0 auto', overflow: 'hidden' }}>
+                      <HexagonalChart
+                        data={msg.analysisData.data}
+                        politicianName={msg.analysisData.politician}
+                      />
+                    </div>
+                  </div>
+                ) : msg.content ? (
+                  <div
+                    className="message-content"
+                    dangerouslySetInnerHTML={{ __html: formatMessage(msg.content) }}
+                  />
+                ) : null}
+              </div>
+          ))}
+          {loading && (
+            <div className="message assistant">
+              <div className="message-header">ÁgoraAI</div>
+              <div className="message-content">
+                <div className="loading-spinner"></div> Pensando...
+              </div>
             </div>
-        ))}
-        {loading && (
-          <div className="message assistant">
-            <div className="message-header">ÁgoraAI</div>
-            <div className="message-content">
-              <div className="loading-spinner"></div> Pensando...
+          )}
+          {showNpsSurvey && (
+            <div className="nps-wrapper">
+              <NPSSurvey />
             </div>
-          </div>
-        )}
-        {showNpsSurvey && (
-          <div className="nps-wrapper">
-            <NPSSurvey />
-          </div>
-        )}
+          )}
+        </div>
       </div>
       {showSuggestions && (
         <div className="chat-suggestions-container">
