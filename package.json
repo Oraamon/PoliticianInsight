@@ -4,6 +4,11 @@
   "description": "Chatbot político neutro e citador de fontes usando API do Gemini",
   "keywords": ["chatbot", "politica", "gemini", "brasil", "eleicoes"],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "scripts": {
+    "dev": "npm --prefix frontend run dev",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
+  }
 }
 
