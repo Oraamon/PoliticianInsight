@@ -212,6 +212,7 @@
   background: rgba(255, 255, 255, 0.5);
 }
 
+
 .message {
   padding: 16px 20px;
   border-radius: 16px;
@@ -399,6 +400,7 @@
   background: rgba(255, 255, 255, 0.15);
   border: 1px solid rgba(255, 255, 255, 0.2);
 }
+
 
 .chat-input {
   flex: 1;
