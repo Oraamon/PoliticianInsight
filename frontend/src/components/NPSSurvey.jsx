@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import './NPSSurvey.css';
 
 const NPS_LOCAL_STORAGE_KEY = 'agoraai-nps-v1';
+const NPS_RESULTS_STORAGE_KEY = 'agoraai-nps-results';
+const ADMIN_PASSWORD = 'agoraai-admin-2024';
 const LEGACY_STORAGE_KEYS = ['politian-nps'];
 
 const scores = Array.from({ length: 11 }, (_, index) => index);
@@ -78,6 +80,11 @@ const NPSSurvey = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
+  const [storedResults, setStoredResults] = useState([]);
+  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
+  const [adminPassword, setAdminPassword] = useState('');
+  const [adminUnlocked, setAdminUnlocked] = useState(false);
+  const [adminError, setAdminError] = useState('');
 
   useEffect(() => {
     const loadStoredSurvey = () => {
@@ -116,7 +123,33 @@ const NPSSurvey = () => {
       }
     };
 
+    const loadStoredResults = () => {
+      const raw = localStorage.getItem(NPS_RESULTS_STORAGE_KEY);
+      if (!raw) return;
+
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) {
+          const cleaned = parsed
+            .filter((entry) => typeof entry === 'object' && entry !== null)
+            .map((entry) => ({
+              score: typeof entry.score === 'number' ? entry.score : null,
+              classification: typeof entry.classification === 'string' ? entry.classification : null,
+              reasons: Array.isArray(entry.reasons) ? entry.reasons.filter((reason) => typeof reason === 'string') : [],
+              feedback: typeof entry.feedback === 'string' ? entry.feedback : '',
+              submittedAt: typeof entry.submittedAt === 'string' ? entry.submittedAt : null
+            }))
+            .filter((entry) => entry.score !== null);
+
+          setStoredResults(cleaned);
+        }
+      } catch (error) {
+        // ignora resultados inválidos
+      }
+    };
+
     loadStoredSurvey();
+    loadStoredResults();
   }, []);
 
   useEffect(() => {
@@ -136,6 +169,14 @@ const NPSSurvey = () => {
       localStorage.removeItem(legacyKey);
     }
   }, [feedback, hydrated, selectedReasons, selectedScore, submitted, submittedAt]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(NPS_RESULTS_STORAGE_KEY, JSON.stringify(storedResults));
+    } catch (error) {
+      // ignore storage failures
+    }
+  }, [storedResults]);
 
   const classification = useMemo(() => {
     if (selectedScore === null || selectedScore === undefined) {
@@ -257,10 +298,28 @@ const NPSSurvey = () => {
       return;
     }
 
+    const timestamp = new Date().toISOString();
+
     setSubmitted(true);
-    setSubmittedAt(new Date().toISOString());
+    setSubmittedAt(timestamp);
     setError('');
     setShowDetails(true);
+
+    if (selectedScore !== null) {
+      setStoredResults((previous) => {
+        const next = [
+          ...previous,
+          {
+            score: selectedScore,
+            classification,
+            reasons: selectedReasons,
+            feedback: feedback.trim(),
+            submittedAt: timestamp
+          }
+        ];
+        return next;
+      });
+    }
   };
 
   const resetSurvey = () => {
@@ -273,6 +332,10 @@ const NPSSurvey = () => {
     setShowDetails(false);
     setCopied(false);
     setCopyError('');
+    setAdminPanelOpen(false);
+    setAdminPassword('');
+    setAdminUnlocked(false);
+    setAdminError('');
   };
 
   const formattedDate = useMemo(() => {
@@ -309,6 +372,113 @@ const NPSSurvey = () => {
     }
   };
 
+  const aggregatedMetrics = useMemo(() => {
+    if (!storedResults.length) {
+      return {
+        total: 0,
+        promoters: 0,
+        passives: 0,
+        detractors: 0,
+        nps: null,
+        average: null,
+        reasonFrequency: [],
+        latest: []
+      };
+    }
+
+    const tally = storedResults.reduce(
+      (accumulator, entry) => {
+        const { score } = entry;
+        if (typeof score !== 'number') {
+          return accumulator;
+        }
+
+        accumulator.total += 1;
+        accumulator.sum += score;
+
+        if (score >= 9) {
+          accumulator.promoters += 1;
+        } else if (score <= 6) {
+          accumulator.detractors += 1;
+        } else {
+          accumulator.passives += 1;
+        }
+
+        if (Array.isArray(entry.reasons)) {
+          for (const reason of entry.reasons) {
+            if (typeof reason !== 'string') continue;
+            accumulator.reasonMap.set(reason, (accumulator.reasonMap.get(reason) ?? 0) + 1);
+          }
+        }
+
+        return accumulator;
+      },
+      {
+        total: 0,
+        promoters: 0,
+        passives: 0,
+        detractors: 0,
+        sum: 0,
+        reasonMap: new Map()
+      }
+    );
+
+    if (!tally.total) {
+      return {
+        total: 0,
+        promoters: 0,
+        passives: 0,
+        detractors: 0,
+        nps: null,
+        average: null,
+        reasonFrequency: [],
+        latest: []
+      };
+    }
+
+    const npsScore = Math.round(((tally.promoters - tally.detractors) / tally.total) * 100);
+    const averageScore = Math.round((tally.sum / tally.total) * 10) / 10;
+
+    const reasonFrequency = Array.from(tally.reasonMap.entries())
+      .map(([reason, count]) => ({ reason, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const latest = [...storedResults]
+      .filter((entry) => entry.submittedAt)
+      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
+      .slice(0, 8);
+
+    return {
+      total: tally.total,
+      promoters: tally.promoters,
+      passives: tally.passives,
+      detractors: tally.detractors,
+      nps: npsScore,
+      average: averageScore,
+      reasonFrequency,
+      latest
+    };
+  }, [storedResults]);
+
+  const handleAdminAccess = (event) => {
+    event.preventDefault();
+    setAdminError('');
+
+    if (adminPassword.trim() === ADMIN_PASSWORD) {
+      setAdminUnlocked(true);
+    } else {
+      setAdminUnlocked(false);
+      setAdminError('Senha incorreta. Tente novamente.');
+    }
+  };
+
+  const closeAdminPanel = () => {
+    setAdminPanelOpen(false);
+    setAdminPassword('');
+    setAdminUnlocked(false);
+    setAdminError('');
+  };
+
   return (
     <section className="nps-card" aria-label="Pesquisa de satisfação NPS da ÁgoraAI">
       <header className="nps-header">
@@ -324,6 +494,15 @@ const NPSSurvey = () => {
             Responder novamente
           </button>
         )}
+        <button
+          type="button"
+          className="nps-admin-access"
+          onClick={() => setAdminPanelOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={adminPanelOpen}
+        >
+          Área administrativa
+        </button>
       </header>
 
       <div className="nps-progress" role="group" aria-label="Etapas da pesquisa">
@@ -519,6 +698,127 @@ const NPSSurvey = () => {
             </span>
           </div>
         </form>
+      )}
+
+      {adminPanelOpen && (
+        <div className="nps-admin-overlay" role="presentation">
+          <div className="nps-admin-dialog" role="dialog" aria-modal="true" aria-label="Resultados NPS da ÁgoraAI">
+            <div className="nps-admin-header">
+              <h3>Painel NPS · Acesso restrito</h3>
+              <button type="button" className="nps-admin-close" onClick={closeAdminPanel} aria-label="Fechar painel">
+                ×
+              </button>
+            </div>
+
+            {!adminUnlocked ? (
+              <form className="nps-admin-form" onSubmit={handleAdminAccess}>
+                <label htmlFor="admin-password">Digite a senha administrativa</label>
+                <input
+                  id="admin-password"
+                  type="password"
+                  value={adminPassword}
+                  onChange={(event) => setAdminPassword(event.target.value)}
+                  placeholder="Senha da equipe"
+                  autoFocus
+                />
+                {adminError && (
+                  <p className="nps-error" role="alert">
+                    {adminError}
+                  </p>
+                )}
+                <button type="submit" className="nps-admin-submit">
+                  Entrar
+                </button>
+                <p className="nps-admin-hint">Somente gestores autenticados podem consultar os resultados agregados.</p>
+              </form>
+            ) : (
+              <div className="nps-admin-content">
+                <div className="nps-admin-summary">
+                  <div className="nps-admin-tile">
+                    <span>Total de respostas</span>
+                    <strong>{aggregatedMetrics.total}</strong>
+                  </div>
+                  <div className="nps-admin-tile">
+                    <span>NPS consolidado</span>
+                    <strong>{aggregatedMetrics.nps !== null ? `${aggregatedMetrics.nps}` : '—'}</strong>
+                  </div>
+                  <div className="nps-admin-tile">
+                    <span>Média das notas</span>
+                    <strong>{aggregatedMetrics.average !== null ? aggregatedMetrics.average.toFixed(1) : '—'}</strong>
+                  </div>
+                  <div className="nps-admin-tile trio">
+                    <div>
+                      <span>Promotores</span>
+                      <strong>{aggregatedMetrics.promoters}</strong>
+                    </div>
+                    <div>
+                      <span>Neutros</span>
+                      <strong>{aggregatedMetrics.passives}</strong>
+                    </div>
+                    <div>
+                      <span>Detratores</span>
+                      <strong>{aggregatedMetrics.detractors}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="nps-admin-section">
+                  <h4>Motivos mais citados</h4>
+                  {aggregatedMetrics.reasonFrequency.length ? (
+                    <ul className="nps-admin-reasons">
+                      {aggregatedMetrics.reasonFrequency.map((item) => (
+                        <li key={item.reason}>
+                          <span>{item.reason}</span>
+                          <strong>{item.count}</strong>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="nps-admin-empty">Ainda não há motivos consolidados para exibir.</p>
+                  )}
+                </div>
+
+                <div className="nps-admin-section">
+                  <h4>Últimas respostas</h4>
+                  {aggregatedMetrics.latest.length ? (
+                    <ul className="nps-admin-list">
+                      {aggregatedMetrics.latest.map((entry, index) => {
+                        const formatted = entry.submittedAt
+                          ? new Intl.DateTimeFormat('pt-BR', {
+                              day: '2-digit',
+                              month: 'short',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            }).format(new Date(entry.submittedAt))
+                          : 'Data indisponível';
+                        return (
+                          <li key={`${entry.submittedAt}-${index}`}>
+                            <div className="nps-admin-list-header">
+                              <span className={`tag ${entry.classification ?? 'indefinido'}`}>{entry.classification ?? '—'}</span>
+                              <strong>Nota {entry.score}</strong>
+                              <span>{formatted}</span>
+                            </div>
+                            {entry.reasons?.length > 0 && (
+                              <p className="nps-admin-reason-tags">{entry.reasons.join(' · ')}</p>
+                            )}
+                            {entry.feedback && <p className="nps-admin-feedback">{entry.feedback}</p>}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="nps-admin-empty">Nenhuma resposta registrada até o momento.</p>
+                  )}
+                </div>
+
+                <p className="nps-admin-storage">
+                  Os resultados ficam armazenados localmente na chave <code>{NPS_RESULTS_STORAGE_KEY}</code>. Exporte-os copiando o
+                  conteúdo do armazenamento local quando desejar.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </section>
   );
