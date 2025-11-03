@@ -69,6 +69,38 @@ const placeholderByClassification = {
   promotor: 'Compartilhe histórias de uso ou resultados que possamos amplificar.'
 };
 
+const scheduleLocalStorageWrite = (key, value) => {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    const idleHandle = window.requestIdleCallback(() => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        // ignore quota or availability issues
+      }
+    }, { timeout: 500 });
+
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
+  }
+
+  const timeoutHandle = window.setTimeout(() => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      // ignore quota or availability issues
+    }
+  }, 120);
+
+  return () => window.clearTimeout(timeoutHandle);
+};
+
 const NPSSurvey = () => {
   const [hydrated, setHydrated] = useState(false);
   const [selectedScore, setSelectedScore] = useState(null);
@@ -152,31 +184,37 @@ const NPSSurvey = () => {
     loadStoredResults();
   }, []);
 
+  const serializedSurveyState = useMemo(
+    () =>
+      JSON.stringify({
+        score: selectedScore,
+        feedback,
+        reasons: selectedReasons,
+        submitted,
+        submittedAt
+      }),
+    [feedback, selectedReasons, selectedScore, submitted, submittedAt]
+  );
+
+  const serializedResults = useMemo(() => JSON.stringify(storedResults), [storedResults]);
+
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !serializedSurveyState) return undefined;
 
-    const payload = JSON.stringify({
-      score: selectedScore,
-      feedback,
-      reasons: selectedReasons,
-      submitted,
-      submittedAt
-    });
-
-    localStorage.setItem(NPS_LOCAL_STORAGE_KEY, payload);
+    const cancel = scheduleLocalStorageWrite(NPS_LOCAL_STORAGE_KEY, serializedSurveyState);
 
     for (const legacyKey of LEGACY_STORAGE_KEYS) {
       localStorage.removeItem(legacyKey);
     }
-  }, [feedback, hydrated, selectedReasons, selectedScore, submitted, submittedAt]);
+
+    return cancel;
+  }, [hydrated, serializedSurveyState]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(NPS_RESULTS_STORAGE_KEY, JSON.stringify(storedResults));
-    } catch (error) {
-      // ignore storage failures
-    }
-  }, [storedResults]);
+    if (!serializedResults) return undefined;
+
+    return scheduleLocalStorageWrite(NPS_RESULTS_STORAGE_KEY, serializedResults);
+  }, [serializedResults]);
 
   const classification = useMemo(() => {
     if (selectedScore === null || selectedScore === undefined) {

@@ -199,6 +199,32 @@
   width: 100%;
 }
 
+.lazy-fallback,
+.chart-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  border: 1px dashed rgba(148, 163, 184, 0.35);
+  border-radius: 18px;
+  background: rgba(241, 245, 249, 0.5);
+  color: rgba(71, 85, 105, 0.85);
+  font-size: 0.9rem;
+  text-align: center;
+  padding: 16px;
+}
+
+.chart-fallback {
+  min-height: 220px;
+}
+
+.dark-mode .lazy-fallback,
+.dark-mode .chart-fallback {
+  background: rgba(30, 41, 59, 0.4);
+  border-color: rgba(148, 163, 184, 0.4);
+  color: rgba(226, 232, 240, 0.75);
+}
+
 @media (max-width: 768px) {
   .chat-messages {
     padding: 60px 20px 200px 20px;
