@@ -186,18 +186,75 @@ const isGenericName = (name) => {
 
 const containsKnownPolitician = (text) => Boolean(matchKnownPolitician(text));
 
+const NPS_CONFIG_KEY = 'agoraai-nps-config';
+const NPS_SURVEY_KEY = 'agoraai-nps-v1';
+
+const getRandomQuestionTarget = () => {
+  // Retorna um número aleatório entre 2 e 5 (inclusive)
+  return Math.floor(Math.random() * 4) + 2; // 2, 3, 4 ou 5
+};
+
+const getNpsConfig = () => {
+  try {
+    // Verifica se já foi respondido
+    const surveyData = localStorage.getItem(NPS_SURVEY_KEY);
+    let hasSubmitted = false;
+    if (surveyData) {
+      try {
+        const parsed = JSON.parse(surveyData);
+        hasSubmitted = Boolean(parsed.submitted);
+      } catch (e) {
+        // Ignora erro
+      }
+    }
+    
+    const stored = localStorage.getItem(NPS_CONFIG_KEY);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return {
+        targetQuestion: parsed.targetQuestion || null,
+        hasAppeared: parsed.hasAppeared || false,
+        hasSubmitted: hasSubmitted
+      };
+    }
+    
+    // Se não tem config ainda, cria uma nova
+    if (!hasSubmitted) {
+      const targetQuestion = getRandomQuestionTarget();
+      const config = {
+        targetQuestion: targetQuestion,
+        hasAppeared: false,
+        hasSubmitted: false
+      };
+      saveNpsConfig(config);
+      return config;
+    }
+  } catch (error) {
+    // Ignora erro
+  }
+  return { targetQuestion: null, hasAppeared: false, hasSubmitted: false };
+};
+
+const saveNpsConfig = (config) => {
+  try {
+    localStorage.setItem(NPS_CONFIG_KEY, JSON.stringify(config));
+  } catch (error) {
+    // Ignora erro
+  }
+};
+
 const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const prevChatIdRef = useRef(null);
-  const [showNpsSurvey, setShowNpsSurvey] = useState(false);
-  const npsTimeoutRef = useRef(null);
-  const lastAssistantResponseRef = useRef(null);
 
   const [displayedSuggestions, setDisplayedSuggestions] = useState(() => pickRandomSuggestions());
+  const [showNpsWithDelay, setShowNpsWithDelay] = useState(false);
+  const [npsConfig, setNpsConfig] = useState(() => getNpsConfig());
 
   const messagesContainerRef = useRef(null);
+  const npsTimerRef = useRef(null);
 
   const scrollToBottom = () => {
     if (messagesContainerRef.current) {
@@ -309,161 +366,61 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   useEffect(() => {
     if (messages.length === 0) {
       setDisplayedSuggestions(pickRandomSuggestions());
+      // Reseta o timer do NPS quando não há mensagens
+      if (npsTimerRef.current) {
+        clearTimeout(npsTimerRef.current);
+        npsTimerRef.current = null;
+      }
+      setShowNpsWithDelay(false);
     }
   }, [messages.length]);
 
-  // Controla exibição do NPS: mostra 10 segundos após resposta do assistente e esconde se já foi respondido
-  // IMPORTANTE: O feedback aparece apenas UMA VEZ por pessoa - se já foi respondido, nunca aparece novamente
+  // Limpa o timer quando o componente desmontar ou mudar de chat
   useEffect(() => {
-    // Verifica se já foi respondido (uma vez respondido, nunca aparece novamente)
-    const checkNpsSubmitted = () => {
+    return () => {
+      if (npsTimerRef.current) {
+        clearTimeout(npsTimerRef.current);
+        npsTimerRef.current = null;
+      }
+    };
+  }, [currentChatId]);
+
+  // Monitora se o NPS foi respondido e atualiza o config
+  useEffect(() => {
+    const checkNpsSubmission = () => {
       try {
-        const npsData = localStorage.getItem('agoraai-nps-v1');
-        if (npsData) {
-          const parsed = JSON.parse(npsData);
-          return Boolean(parsed.submitted);
+        const surveyData = localStorage.getItem(NPS_SURVEY_KEY);
+        if (surveyData) {
+          const parsed = JSON.parse(surveyData);
+          const hasSubmitted = Boolean(parsed.submitted);
+          setNpsConfig(prevConfig => {
+            if (hasSubmitted && !prevConfig.hasSubmitted) {
+              // Para o timer se estiver rodando
+              if (npsTimerRef.current) {
+                clearTimeout(npsTimerRef.current);
+                npsTimerRef.current = null;
+              }
+              setShowNpsWithDelay(false);
+              
+              const updatedConfig = {
+                ...prevConfig,
+                hasSubmitted: true
+              };
+              saveNpsConfig(updatedConfig);
+              return updatedConfig;
+            }
+            return prevConfig;
+          });
         }
       } catch (error) {
-        // Erro ao verificar, assume que não foi submetido
+        // Ignora erro
       }
-      return false;
     };
-
-    // Se já foi respondido, nunca mostra o feedback novamente
-    if (checkNpsSubmitted()) {
-      setShowNpsSurvey(false);
-      if (npsTimeoutRef.current) {
-        clearTimeout(npsTimeoutRef.current);
-        npsTimeoutRef.current = null;
-      }
-      return;
-    }
-
-    // Verifica última mensagem do assistente
-    const assistantMessages = messages.filter(msg => msg.role === 'assistant' && msg.content !== 'analysis');
-    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
     
-    if (lastAssistantMessage) {
-      // Cria um identificador único baseado no conteúdo e índice
-      const messageId = `${lastAssistantMessage.role}_${assistantMessages.length}_${lastAssistantMessage.content?.substring(0, 50) || ''}`;
-      
-      // Se é uma nova resposta do assistente (diferente da última que rastreamos)
-      if (lastAssistantResponseRef.current !== messageId) {
-        lastAssistantResponseRef.current = messageId;
-        
-        // Limpa timeout anterior se existir
-        if (npsTimeoutRef.current) {
-          clearTimeout(npsTimeoutRef.current);
-          npsTimeoutRef.current = null;
-        }
-        
-        // Esconde o NPS imediatamente quando nova resposta chega
-        setShowNpsSurvey(false);
-        
-        // Verifica novamente se não foi respondido (para garantir)
-        if (!checkNpsSubmitted()) {
-          // Mostra após 10 segundos
-          npsTimeoutRef.current = setTimeout(() => {
-            // Verifica novamente se não foi respondido enquanto esperava
-            // (pode ter sido respondido durante os 10 segundos)
-            if (!checkNpsSubmitted()) {
-              setShowNpsSurvey(true);
-            }
-          }, 10000); // 10 segundos
-        }
-      }
-    } else {
-      // Se não há mensagem do assistente, esconde o NPS
-      setShowNpsSurvey(false);
-      if (npsTimeoutRef.current) {
-        clearTimeout(npsTimeoutRef.current);
-        npsTimeoutRef.current = null;
-      }
-    }
-
-    // Cleanup
-    return () => {
-      if (npsTimeoutRef.current) {
-        clearTimeout(npsTimeoutRef.current);
-        npsTimeoutRef.current = null;
-      }
-    };
-  }, [messages]);
-
-  // Monitora quando o NPS é submetido e esconde o survey permanentemente
-  // Uma vez respondido, o feedback nunca aparece novamente
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === 'agoraai-nps-v1' && e.newValue) {
-        try {
-          const parsed = JSON.parse(e.newValue);
-          if (parsed.submitted) {
-            // Uma vez submetido, esconde permanentemente
-            setShowNpsSurvey(false);
-            // Limpa timeout se ainda estiver aguardando
-            if (npsTimeoutRef.current) {
-              clearTimeout(npsTimeoutRef.current);
-              npsTimeoutRef.current = null;
-            }
-            // Limpa a referência para que não tente mostrar novamente
-            lastAssistantResponseRef.current = null;
-          }
-        } catch (error) {
-          // Erro ao parsear
-        }
-      }
-    };
-
-    // Verifica se já foi submetido ao montar
-    // Se já foi respondido uma vez, nunca mostra novamente
-    try {
-      const npsData = localStorage.getItem('agoraai-nps-v1');
-      if (npsData) {
-        const parsed = JSON.parse(npsData);
-        if (parsed.submitted) {
-          setShowNpsSurvey(false);
-          // Limpa qualquer timeout pendente
-          if (npsTimeoutRef.current) {
-            clearTimeout(npsTimeoutRef.current);
-            npsTimeoutRef.current = null;
-          }
-          // Limpa a referência para que não tente mostrar novamente
-          lastAssistantResponseRef.current = null;
-        }
-      }
-    } catch (error) {
-      // Erro ao verificar
-    }
-
-    // Escuta mudanças no localStorage (para outras abas)
-    window.addEventListener('storage', handleStorageChange);
+    // Verifica a cada 500ms se o NPS foi respondido
+    const interval = setInterval(checkNpsSubmission, 500);
     
-    // Também verifica periodicamente (para mudanças na mesma aba)
-    const interval = setInterval(() => {
-      try {
-        const npsData = localStorage.getItem('agoraai-nps-v1');
-        if (npsData) {
-          const parsed = JSON.parse(npsData);
-          // Se foi submetido, esconde permanentemente e cancela qualquer timer
-          if (parsed.submitted) {
-            setShowNpsSurvey(false);
-            if (npsTimeoutRef.current) {
-              clearTimeout(npsTimeoutRef.current);
-              npsTimeoutRef.current = null;
-            }
-            // Limpa a referência para que não tente mostrar novamente
-            lastAssistantResponseRef.current = null;
-          }
-        }
-      } catch (error) {
-        // Erro ao verificar
-      }
-    }, 1000); // Verifica a cada segundo
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      clearInterval(interval);
-    };
+    return () => clearInterval(interval);
   }, []);
 
   // Prepara o contexto das mensagens anteriores para enviar à API
@@ -516,6 +473,13 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     
     setInput('');
     setLoading(true);
+    
+    // Reseta o timer do NPS quando o usuário envia nova mensagem
+    if (npsTimerRef.current) {
+      clearTimeout(npsTimerRef.current);
+      npsTimerRef.current = null;
+    }
+    setShowNpsWithDelay(false);
 
     // Prepara o contexto das mensagens anteriores (ANTES de adicionar a mensagem atual)
     const context = prepareContext(messages);
@@ -563,6 +527,38 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
         
         // Atualiza o estado
         setMessages(newMessagesWithAssistant);
+        
+        // Conta perguntas do usuário (incluindo a que acabou de ser enviada)
+        const currentUserMessageCount = newMessagesWithUser.filter(msg => msg.role === 'user').length;
+        
+        // Verifica se deve mostrar o NPS:
+        // 1. Não foi respondido ainda
+        // 2. Atingiu o número de perguntas alvo
+        // 3. Ainda não apareceu ou já apareceu mas não foi respondido
+        const shouldShowNps = !npsConfig.hasSubmitted && 
+                              npsConfig.targetQuestion && 
+                              currentUserMessageCount >= npsConfig.targetQuestion &&
+                              !npsConfig.hasAppeared;
+        
+        // Inicia timer de 10 segundos para mostrar o NPS após a resposta do assistente
+        // Limpa timer anterior se existir
+        if (npsTimerRef.current) {
+          clearTimeout(npsTimerRef.current);
+        }
+        setShowNpsWithDelay(false);
+        
+        if (shouldShowNps) {
+          npsTimerRef.current = setTimeout(() => {
+            setShowNpsWithDelay(true);
+            // Marca como aparecido
+            const updatedConfig = {
+              ...npsConfig,
+              hasAppeared: true
+            };
+            setNpsConfig(updatedConfig);
+            saveNpsConfig(updatedConfig);
+          }, 10000); // 10 segundos
+        }
         
         // Verifica se deve gerar gráfico, considerando o contexto das mensagens anteriores
         // Usa as mensagens anteriores + a nova mensagem do usuário + a resposta do assistente
@@ -1037,6 +1033,9 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const userMessageCount = messages.filter(msg => msg.role === 'user').length;
   const showHeader = userMessageCount === 0;
   const showSuggestions = userMessageCount === 0;
+  const showDashboard = userMessageCount === 0; // Dashboard só aparece quando não há mensagens
+  // NPS aparece apenas se: não foi respondido, apareceu após 10 segundos e não há sugestões
+  const showNpsSurvey = !showSuggestions && showNpsWithDelay && !npsConfig.hasSubmitted;
 
 
   const handleSuggestionClick = (suggestion) => {
@@ -1045,23 +1044,66 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
 
   return (
     <div className="chat-container">
-      {showHeader && (
-        <div className="chat-header">
-          <div className="chat-header-svg">
-            <svg width="36" height="38" viewBox="0 0 36 38" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M10.5 16.8281C10.5 16.8281 11.0793 22.2355 13.336 24.4921C15.5926 26.7487 21 27.3281 21 27.3281C21 27.3281 15.5926 27.9074 13.336 30.164C11.0793 32.4206 10.5 37.8281 10.5 37.8281C10.5 37.8281 9.92066 32.4206 7.66405 30.164C5.40743 27.9074 0 27.3281 0 27.3281C0 27.3281 5.40743 26.7487 7.66405 24.4921C9.92066 22.2355 10.5 16.8281 10.5 16.8281Z" fill="currentColor"/>
-              <path d="M25.5 7.91403C25.5 7.91403 26.0793 13.3215 28.336 15.5781C30.5926 17.8347 36 18.414 36 18.414C36 18.414 30.5926 18.9934 28.336 21.25C26.0793 23.5066 25.5 28.914 25.5 28.914C25.5 28.914 24.9207 23.5066 22.664 21.25C20.4074 18.9934 15 18.414 15 18.414C15 18.414 20.4074 17.8347 22.664 15.5781C24.9207 13.3215 25.5 7.91403 25.5 7.91403Z" fill="currentColor"/>
-              <path d="M10.5 0C10.5 0 11.0793 5.40743 13.336 7.66405C15.5926 9.92066 21 10.5 21 10.5C21 10.5 15.5926 11.0793 13.336 13.336C11.0793 15.5926 10.5 21 10.5 21C10.5 21 9.92066 15.5926 7.66405 13.336C5.40743 11.0793 0 10.5 0 10.5C0 10.5 5.40743 9.92066 7.66405 7.66405C9.92066 5.40743 10.5 0 10.5 0Z" fill="currentColor"/>
-            </svg>
-          </div>
-          <h2 className="chat-header-text">Converse com a {ASSISTANT_NAME}</h2>
-        </div>
-      )}
       <div className="chat-messages" ref={messagesContainerRef}>
         <div className="chat-stream">
-          <Suspense fallback={<div className="lazy-fallback" aria-hidden="true">Carregando insights...</div>}>
-            <InsightsOverview showHeader={showHeader} />
-          </Suspense>
+          {showHeader && (
+            <div className="chat-header">
+              <div className="chat-header-svg">
+                <svg width="36" height="38" viewBox="0 0 36 38" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M10.5 16.8281C10.5 16.8281 11.0793 22.2355 13.336 24.4921C15.5926 26.7487 21 27.3281 21 27.3281C21 27.3281 15.5926 27.9074 13.336 30.164C11.0793 32.4206 10.5 37.8281 10.5 37.8281C10.5 37.8281 9.92066 32.4206 7.66405 30.164C5.40743 27.9074 0 27.3281 0 27.3281C0 27.3281 5.40743 26.7487 7.66405 24.4921C9.92066 22.2355 10.5 16.8281 10.5 16.8281Z" fill="currentColor"/>
+                  <path d="M25.5 7.91403C25.5 7.91403 26.0793 13.3215 28.336 15.5781C30.5926 17.8347 36 18.414 36 18.414C36 18.414 30.5926 18.9934 28.336 21.25C26.0793 23.5066 25.5 28.914 25.5 28.914C25.5 28.914 24.9207 23.5066 22.664 21.25C20.4074 18.9934 15 18.414 15 18.414C15 18.414 20.4074 17.8347 22.664 15.5781C24.9207 13.3215 25.5 7.91403 25.5 7.91403Z" fill="currentColor"/>
+                  <path d="M10.5 0C10.5 0 11.0793 5.40743 13.336 7.66405C15.5926 9.92066 21 10.5 21 10.5C21 10.5 15.5926 11.0793 13.336 13.336C11.0793 15.5926 10.5 21 10.5 21C10.5 21 9.92066 15.5926 7.66405 13.336C5.40743 11.0793 0 10.5 0 10.5C0 10.5 5.40743 9.92066 7.66405 7.66405C9.92066 5.40743 10.5 0 10.5 0Z" fill="currentColor"/>
+                </svg>
+              </div>
+              <h2 className="chat-header-text">Converse com a {ASSISTANT_NAME}</h2>
+            </div>
+          )}
+          {showSuggestions && (
+            <div className="chat-suggestions-container">
+              <p className="suggestions-title">Sugestões para explorar com a {ASSISTANT_NAME}</p>
+              <div className="chat-suggestions">
+                {displayedSuggestions.map((suggestion, idx) => (
+                  <button
+                    key={idx}
+                    className="suggestion-button"
+                    onClick={() => handleSuggestionClick(suggestion)}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+          {showSuggestions && (
+            <div className={`chat-input-container`}>
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyPress={handleKeyPress}
+                placeholder="Pesquise sobre política, eleições, leis..."
+                disabled={loading}
+                className="chat-input"
+              />
+              <button 
+                onClick={sendMessage} 
+                disabled={loading || !input.trim()}
+                className="chat-button"
+                aria-label="Enviar mensagem"
+              >
+                <span className="chat-button-text">Enviar</span>
+                <svg className="chat-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </button>
+            </div>
+          )}
+          {showDashboard && (
+            <Suspense fallback={<div className="lazy-fallback" aria-hidden="true">Carregando insights...</div>}>
+              <InsightsOverview showHeader={showHeader} />
+            </Suspense>
+          )}
           {messages.map((msg, idx) => (
               <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
                 <div className="message-header">
@@ -1101,45 +1143,31 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           )}
         </div>
       </div>
-      {showSuggestions && (
-        <div className="chat-suggestions-container">
-          <p className="suggestions-title">Sugestões para explorar com a {ASSISTANT_NAME}</p>
-          <div className="chat-suggestions">
-            {displayedSuggestions.map((suggestion, idx) => (
-              <button
-                key={idx}
-                className="suggestion-button"
-                onClick={() => handleSuggestionClick(suggestion)}
-              >
-                {suggestion}
-              </button>
-            ))}
-          </div>
+      {!showSuggestions && (
+        <div className={`chat-input-container chat-input-sticky`}>
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Digite sua pergunta..."
+            disabled={loading}
+            className="chat-input"
+          />
+          <button 
+            onClick={sendMessage} 
+            disabled={loading || !input.trim()}
+            className="chat-button"
+            aria-label="Enviar mensagem"
+          >
+            <span className="chat-button-text">Enviar</span>
+            <svg className="chat-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </button>
         </div>
       )}
-      <div className="chat-input-container">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyPress={handleKeyPress}
-          placeholder="Digite sua pergunta..."
-          disabled={loading}
-          className="chat-input"
-        />
-        <button 
-          onClick={sendMessage} 
-          disabled={loading || !input.trim()}
-          className="chat-button"
-          aria-label="Enviar mensagem"
-        >
-          <span className="chat-button-text">Enviar</span>
-          <svg className="chat-button-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22 2L11 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-            <path d="M22 2L15 22L11 13L2 9L22 2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-          </svg>
-        </button>
-      </div>
     </div>
   );
 };
