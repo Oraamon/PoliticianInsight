@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -129,6 +130,150 @@ type CacheClearResponse struct {
 	Timestamp  time.Time `json:"timestamp"`
 }
 
+type NPSResponse struct {
+	Score          int      `json:"score"`
+	Classification string   `json:"classification"`
+	Reasons        []string `json:"reasons,omitempty"`
+	Feedback       string   `json:"feedback,omitempty"`
+	SubmittedAt    string   `json:"submittedAt"`
+}
+
+type NPSStore struct {
+	filePath  string
+	responses []NPSResponse
+	mutex     sync.RWMutex
+}
+
+func NewNPSStore(filePath string) (*NPSStore, error) {
+	store := &NPSStore{
+		filePath:  filePath,
+		responses: []NPSResponse{},
+	}
+
+	if err := store.load(); err != nil {
+		return nil, err
+	}
+
+	return store, nil
+}
+
+func (s *NPSStore) load() error {
+	dir := filepath.Dir(s.filePath)
+	if dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+
+	file, err := os.Open(s.filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			s.responses = []NPSResponse{}
+			return nil
+		}
+		return err
+	}
+	defer file.Close()
+
+	decoder := json.NewDecoder(file)
+	var data []NPSResponse
+	if err := decoder.Decode(&data); err != nil {
+		if err == io.EOF {
+			s.responses = []NPSResponse{}
+			return nil
+		}
+		return err
+	}
+
+	s.responses = data
+	return nil
+}
+
+func (s *NPSStore) saveLocked() error {
+	if dir := filepath.Dir(s.filePath); dir != "." {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+	}
+
+	if len(s.responses) == 0 {
+		emptyJSON := []byte("[]")
+		return os.WriteFile(s.filePath, emptyJSON, 0o644)
+	}
+
+	payload, err := json.MarshalIndent(s.responses, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	tempPath := s.filePath + ".tmp"
+	if err := os.WriteFile(tempPath, payload, 0o644); err != nil {
+		return err
+	}
+
+	return os.Rename(tempPath, s.filePath)
+}
+
+func (s *NPSStore) Add(entry NPSResponse) error {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	s.responses = append(s.responses, entry)
+	return s.saveLocked()
+}
+
+func (s *NPSStore) List() []NPSResponse {
+	s.mutex.RLock()
+	defer s.mutex.RUnlock()
+
+	copied := make([]NPSResponse, len(s.responses))
+	copy(copied, s.responses)
+	return copied
+}
+
+func classifyNPS(score int) string {
+	if score <= 6 {
+		return "detrator"
+	}
+	if score <= 8 {
+		return "neutro"
+	}
+	return "promotor"
+}
+
+func sanitizeReasons(reasons []string) []string {
+	if len(reasons) == 0 {
+		return nil
+	}
+
+	cleaned := make([]string, 0, len(reasons))
+	seen := make(map[string]struct{}, len(reasons))
+
+	for _, reason := range reasons {
+		trimmed := strings.TrimSpace(reason)
+		if trimmed == "" {
+			continue
+		}
+
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+
+		cleaned = append(cleaned, trimmed)
+		seen[trimmed] = struct{}{}
+
+		if len(cleaned) >= 5 {
+			break
+		}
+	}
+
+	if len(cleaned) == 0 {
+		return nil
+	}
+
+	return cleaned
+}
+
 type GeminiRequest struct {
 	Contents         []GeminiContent         `json:"contents"`
 	Tools            []GeminiTool            `json:"tools,omitempty"`
@@ -200,10 +345,16 @@ IMPORTANTE - Links de fontes oficiais:
 - Quando incluir fontes, use APENAS os sites relevantes ao tema específico da pergunta. Não liste todos os sites sempre.
 - Não termine automaticamente com a frase "Para informações mais detalhadas..." se a resposta já foi completa e não há necessidade de consulta adicional.`
 
+const (
+	npsStoreFilePath  = "data/nps-responses.json"
+	maxNPSPayloadSize = 64 * 1024
+)
+
 var (
 	cache        *Cache
 	geminiAPIKey string
 	geminiURL    = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
+	npsStore     *NPSStore
 )
 
 func main() {
@@ -218,6 +369,10 @@ func main() {
 	}
 
 	cache = NewCache(5 * time.Minute)
+	npsStore, err = NewNPSStore(npsStoreFilePath)
+	if err != nil {
+		log.Fatalf("não foi possível preparar o armazenamento NPS: %v", err)
+	}
 	r := mux.NewRouter()
 	r.Use(corsMiddleware)
 
@@ -227,6 +382,8 @@ func main() {
 	api.HandleFunc("/health", handleHealth).Methods("GET")
 	api.HandleFunc("/sources", handleSources).Methods("GET")
 	api.HandleFunc("/cache/clear", handleCacheClear).Methods("POST")
+	api.HandleFunc("/nps/responses", handleNPSSubmit).Methods("POST")
+	api.HandleFunc("/nps/responses", handleNPSList).Methods("GET")
 
 	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
 	port := os.Getenv("PORT")
@@ -305,6 +462,102 @@ func searchRealTimeInfo(query string) bool {
 		}
 	}
 	return false
+}
+
+func handleNPSSubmit(w http.ResponseWriter, r *http.Request) {
+	if npsStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "armazenamento de pesquisas indisponível")
+		return
+	}
+
+	defer r.Body.Close()
+
+	reader := io.LimitReader(r.Body, maxNPSPayloadSize)
+	decoder := json.NewDecoder(reader)
+	decoder.DisallowUnknownFields()
+
+	var payload struct {
+		Score          *int     `json:"score"`
+		Classification string   `json:"classification"`
+		Reasons        []string `json:"reasons"`
+		Feedback       string   `json:"feedback"`
+		SubmittedAt    string   `json:"submittedAt"`
+	}
+
+	if err := decoder.Decode(&payload); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "não foi possível interpretar a resposta NPS enviada")
+		return
+	}
+
+	if payload.Score == nil {
+		writeJSONError(w, http.StatusBadRequest, "a nota NPS é obrigatória")
+		return
+	}
+
+	score := *payload.Score
+	if score < 0 || score > 10 {
+		writeJSONError(w, http.StatusBadRequest, "a nota deve estar entre 0 e 10")
+		return
+	}
+
+	submittedAt := time.Now().UTC()
+	if payload.SubmittedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339, payload.SubmittedAt); err == nil {
+			submittedAt = parsed.UTC()
+		}
+	}
+
+	classification := strings.TrimSpace(strings.ToLower(payload.Classification))
+	expectedClassification := classifyNPS(score)
+	if classification == "" || classification != expectedClassification {
+		classification = expectedClassification
+	}
+
+	reasons := sanitizeReasons(payload.Reasons)
+	feedback := strings.TrimSpace(payload.Feedback)
+
+	entry := NPSResponse{
+		Score:          score,
+		Classification: classification,
+		Reasons:        reasons,
+		Feedback:       feedback,
+		SubmittedAt:    submittedAt.Format(time.RFC3339),
+	}
+
+	if err := npsStore.Add(entry); err != nil {
+		log.Printf("erro ao salvar resposta NPS: %v", err)
+		writeJSONError(w, http.StatusInternalServerError, "não foi possível salvar a resposta no momento")
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	if err := json.NewEncoder(w).Encode(entry); err != nil {
+		log.Printf("erro ao codificar resposta NPS: %v", err)
+	}
+}
+
+func handleNPSList(w http.ResponseWriter, r *http.Request) {
+	if npsStore == nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "armazenamento de pesquisas indisponível")
+		return
+	}
+
+	responses := npsStore.List()
+	if responses == nil {
+		responses = []NPSResponse{}
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(map[string][]NPSResponse{"responses": responses}); err != nil {
+		log.Printf("erro ao codificar lista NPS: %v", err)
+	}
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	w.WriteHeader(status)
+	if err := json.NewEncoder(w).Encode(map[string]string{"error": message}); err != nil {
+		log.Printf("erro ao enviar resposta de erro: %v", err)
+	}
 }
 
 // Busca dados da Câmara dos Deputados

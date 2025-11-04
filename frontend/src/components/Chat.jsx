@@ -1,8 +1,190 @@
-import { useState, useRef, useEffect } from 'react';
-import HexagonalChart from './HexagonalChart';
-import InsightsOverview from './InsightsOverview';
-import NPSSurvey from './NPSSurvey';
+import { useEffect, useRef, useState, Suspense, lazy } from 'react';
 import './Chat.css';
+
+const HexagonalChart = lazy(() => import('./HexagonalChart'));
+const InsightsOverview = lazy(() => import('./InsightsOverview'));
+const NPSSurvey = lazy(() => import('./NPSSurvey'));
+
+const SUGGESTIONS_COUNT = 3;
+
+const ALL_SUGGESTIONS = Object.freeze([
+  'Quem é o presidente atual do Brasil?',
+  'Explique sobre o sistema eleitoral brasileiro',
+  'Fale sobre os poderes executivo, legislativo e judiciário',
+  'Análise do perfil político do Lula',
+  'Mostre o gráfico do Bolsonaro',
+  'O que é uma PEC?',
+  'Como funciona o voto no Brasil?',
+  'Quais são os partidos políticos brasileiros?',
+  'Explique sobre impeachment',
+  'O que é o STF?',
+  'Análise do perfil político do Ciro Gomes',
+  'Como funciona o Senado?',
+  'O que é a Câmara dos Deputados?',
+  'Explique sobre o mandato presidencial',
+  'Quem pode ser presidente?',
+  'Análise do perfil político da Marina Silva'
+]);
+
+const GENERIC_NAMES = new Set([
+  'político',
+  'como',
+  'explique',
+  'fale',
+  'conte',
+  'diga',
+  'sistema',
+  'senado',
+  'câmara',
+  'camara',
+  'congresso',
+  'brasil',
+  'federal'
+]);
+
+const COMMON_WORDS = new Set([
+  'como',
+  'o',
+  'a',
+  'os',
+  'as',
+  'de',
+  'da',
+  'do',
+  'das',
+  'dos',
+  'e',
+  'em',
+  'para',
+  'sobre',
+  'com',
+  'explique',
+  'fale',
+  'conte',
+  'diga',
+  'informe',
+  'quem',
+  'qual',
+  'quais',
+  'onde',
+  'quando',
+  'porque',
+  'por',
+  'que',
+  'senado',
+  'câmara',
+  'camara',
+  'congresso',
+  'brasil',
+  'brasileiro',
+  'brasileiros',
+  'federal',
+  'nacional',
+  'republica',
+  'presidente',
+  'governador',
+  'sistema'
+]);
+
+const CHART_PROMISES = Object.freeze([
+  'gráfico será gerado',
+  'grafico será gerado',
+  'gráfico será apresentado',
+  'grafico será apresentado',
+  'gerar gráfico',
+  'gerar grafico',
+  'apresentar gráfico',
+  'apresentar grafico',
+  'gráfico hexagonal',
+  'grafico hexagonal',
+  'gráfico com',
+  'grafico com',
+  'a seguir, apresentarei um gráfico',
+  'seguir, apresentarei um grafico',
+  'apresentarei um gráfico',
+  'apresentarei um grafico',
+  'gráfico visando fornecer',
+  'grafico visando fornecer',
+  'aguarde enquanto o gráfico',
+  'aguarde enquanto o grafico'
+]);
+
+const ANALYSIS_KEYWORDS = new Set([
+  'gráfico',
+  'grafico',
+  'chart',
+  'análise',
+  'analise',
+  'perfil',
+  'dê',
+  'de',
+  'mostre',
+  'mostra'
+]);
+
+const KNOWN_POLITICIAN_ALIASES = new Map([
+  ['lula', 'Lula'],
+  ['luiz inácio lula', 'Lula'],
+  ['luiz inacio lula', 'Lula'],
+  ['luiz inácio lula da silva', 'Lula'],
+  ['luiz inacio lula da silva', 'Lula'],
+  ['lula da silva', 'Lula'],
+  ['bolsonaro', 'Bolsonaro'],
+  ['jair bolsonaro', 'Bolsonaro'],
+  ['ciro', 'Ciro Gomes'],
+  ['ciro gomes', 'Ciro Gomes'],
+  ['marina', 'Marina Silva'],
+  ['marina silva', 'Marina Silva'],
+  ['aecio', 'Aécio Neves'],
+  ['aécio neves', 'Aécio Neves'],
+  ['temer', 'Michel Temer'],
+  ['michel temer', 'Michel Temer'],
+  ['dilma', 'Dilma Rousseff'],
+  ['dilma rousseff', 'Dilma Rousseff'],
+  ['doria', 'João Doria'],
+  ['joão doria', 'João Doria'],
+  ['joao doria', 'João Doria'],
+  ['haddad', 'Fernando Haddad'],
+  ['fernando haddad', 'Fernando Haddad'],
+  ['boulos', 'Guilherme Boulos'],
+  ['guilherme boulos', 'Guilherme Boulos'],
+  ['freixo', 'Marcelo Freixo'],
+  ['marcelo freixo', 'Marcelo Freixo'],
+  ['collor', 'Fernando Collor'],
+  ['fernando collor', 'Fernando Collor'],
+  ['tasso', 'Tasso Jereissati'],
+  ['tasso jereissati', 'Tasso Jereissati'],
+  ['barbosa', 'Joaquim Barbosa'],
+  ['joaquim barbosa', 'Joaquim Barbosa']
+]);
+
+const ASSISTANT_NAME = 'ÁgoraAI';
+
+const pickRandomSuggestions = () => {
+  const shuffled = [...ALL_SUGGESTIONS];
+  for (let i = shuffled.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled.slice(0, SUGGESTIONS_COUNT);
+};
+
+const matchKnownPolitician = (text) => {
+  const lowerText = text.toLowerCase();
+  for (const [alias, name] of KNOWN_POLITICIAN_ALIASES.entries()) {
+    if (lowerText.includes(alias)) {
+      return name;
+    }
+  }
+  return null;
+};
+
+const isGenericName = (name) => {
+  if (!name) return true;
+  return GENERIC_NAMES.has(name.toLowerCase());
+};
+
+const containsKnownPolitician = (text) => Boolean(matchKnownPolitician(text));
 
 const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [messages, setMessages] = useState([]);
@@ -10,32 +192,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [loading, setLoading] = useState(false);
   const prevChatIdRef = useRef(null);
 
-  const allSuggestions = [
-    'Quem é o presidente atual do Brasil?',
-    'Explique sobre o sistema eleitoral brasileiro',
-    'Fale sobre os poderes executivo, legislativo e judiciário',
-    'Análise do perfil político do Lula',
-    'Mostre o gráfico do Bolsonaro',
-    'O que é uma PEC?',
-    'Como funciona o voto no Brasil?',
-    'Quais são os partidos políticos brasileiros?',
-    'Explique sobre impeachment',
-    'O que é o STF?',
-    'Análise do perfil político do Ciro Gomes',
-    'Como funciona o Senado?',
-    'O que é a Câmara dos Deputados?',
-    'Explique sobre o mandato presidencial',
-    'Quem pode ser presidente?',
-    'Análise do perfil político da Marina Silva'
-  ];
-
-  // Seleciona 3 sugestões aleatórias
-  const getRandomSuggestions = () => {
-    const shuffled = [...allSuggestions].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 3);
-  };
-
-  const [displayedSuggestions, setDisplayedSuggestions] = useState(() => getRandomSuggestions());
+  const [displayedSuggestions, setDisplayedSuggestions] = useState(() => pickRandomSuggestions());
 
   const messagesContainerRef = useRef(null);
 
@@ -148,7 +305,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   // Atualiza sugestões quando não há mensagens
   useEffect(() => {
     if (messages.length === 0) {
-      setDisplayedSuggestions(getRandomSuggestions());
+      setDisplayedSuggestions(pickRandomSuggestions());
     }
   }, [messages.length]);
 
@@ -282,8 +439,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           }
           
           // Só gera gráfico se detectou um nome válido (não genérico nem palavra comum)
-          const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Brasil', 'Federal'];
-          if (detectedName && !genericNames.includes(detectedName)) {
+          if (detectedName && !isGenericName(detectedName)) {
             // Passa o histórico completo incluindo a resposta do assistente para melhor detecção
             generateAnalysis(userMessage, detectedName, messagesWithBoth);
           }
@@ -324,89 +480,38 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
 
   // Extrai nome de político do contexto das mensagens anteriores
   const extractPoliticianNameFromContext = (messageHistory, currentQuery) => {
-    // Mapa de políticos conhecidos (versões completas e abreviações)
-    const politicianMap = {
-      'lula': 'Lula',
-      'luiz inácio lula': 'Lula',
-      'luiz inacio lula': 'Lula',
-      'lula da silva': 'Lula',
-      'bolsonaro': 'Bolsonaro',
-      'jair bolsonaro': 'Bolsonaro',
-      'ciro': 'Ciro Gomes',
-      'ciro gomes': 'Ciro Gomes',
-      'marina': 'Marina Silva',
-      'marina silva': 'Marina Silva',
-      'aecio': 'Aécio Neves',
-      'aécio neves': 'Aécio Neves',
-      'temer': 'Michel Temer',
-      'michel temer': 'Michel Temer',
-      'dilma': 'Dilma Rousseff',
-      'dilma rousseff': 'Dilma Rousseff',
-      'doria': 'João Doria',
-      'joão doria': 'João Doria',
-      'joao doria': 'João Doria',
-      'haddad': 'Fernando Haddad',
-      'fernando haddad': 'Fernando Haddad',
-      'boulos': 'Guilherme Boulos',
-      'guilherme boulos': 'Guilherme Boulos',
-      'freixo': 'Marcelo Freixo',
-      'marcelo freixo': 'Marcelo Freixo',
-      'collor': 'Fernando Collor',
-      'fernando collor': 'Fernando Collor',
-      'tasso': 'Tasso Jereissati',
-      'tasso jereissati': 'Tasso Jereissati',
-      'barbosa': 'Joaquim Barbosa',
-      'joaquim barbosa': 'Joaquim Barbosa'
-    };
-    
-    // Verifica se há referências a políticos nas últimas mensagens (usuário E assistente)
     const recentMessages = messageHistory.slice(-10).reverse();
     for (const msg of recentMessages) {
-      if (msg.content && typeof msg.content === 'string') {
-        const lowerContent = msg.content.toLowerCase();
-        // Procura por nomes de políticos no conteúdo
-        for (const [key, value] of Object.entries(politicianMap)) {
-          if (lowerContent.includes(key)) {
-            return value;
-          }
-        }
-        // Também tenta extrair usando a função extractPoliticianName para mensagens do usuário
-        if (msg.role === 'user') {
-          const extracted = extractPoliticianName(msg.content);
-          if (extracted) {
-            return extracted;
-          }
+      if (!msg.content || typeof msg.content !== 'string') {
+        continue;
+      }
+
+      const known = matchKnownPolitician(msg.content);
+      if (known) {
+        return known;
+      }
+
+      if (msg.role === 'user') {
+        const extracted = extractPoliticianName(msg.content);
+        if (extracted) {
+          return extracted;
         }
       }
     }
-    
-    // Verifica se a mensagem atual menciona político
-    const lowerQuery = currentQuery.toLowerCase();
-    for (const [key, value] of Object.entries(politicianMap)) {
-      if (lowerQuery.includes(key)) {
-        return value;
-      }
+
+    if (typeof currentQuery === 'string') {
+      return matchKnownPolitician(currentQuery);
     }
-    
+
     return null;
   };
 
   // Verifica se o assistente prometeu gerar um gráfico na resposta
   const checkIfAssistantPromisedChart = (assistantReply) => {
     if (!assistantReply) return false;
-    
+
     const lowerReply = assistantReply.toLowerCase();
-    const chartPromises = [
-      'gráfico será gerado', 'grafico será gerado', 'gráfico será apresentado', 'grafico será apresentado',
-      'gerar gráfico', 'gerar grafico', 'apresentar gráfico', 'apresentar grafico',
-      'gráfico hexagonal', 'grafico hexagonal', 'gráfico com', 'grafico com',
-      'a seguir, apresentarei um gráfico', 'seguir, apresentarei um grafico',
-      'apresentarei um gráfico', 'apresentarei um grafico',
-      'gráfico visando fornecer', 'grafico visando fornecer',
-      'aguarde enquanto o gráfico', 'aguarde enquanto o grafico'
-    ];
-    
-    return chartPromises.some(promise => lowerReply.includes(promise));
+    return CHART_PROMISES.some((promise) => lowerReply.includes(promise));
   };
 
   // Extrai nome de político da resposta do assistente
@@ -425,12 +530,8 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       if (match && match[1]) {
         const name = match[1].trim();
         // Verifica se não é palavra comum
-        const commonWords = ['Como', 'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre',
-                            'Com', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
-                            'Quando', 'Porque', 'Por', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Brasileiro',
-                            'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador', 'Sistema'];
-        
-        if (!commonWords.some(word => name.toLowerCase() === word.toLowerCase()) && name.length > 3) {
+        const normalized = name.toLowerCase();
+        if (!COMMON_WORDS.has(normalized) && name.length > 3) {
           return name;
         }
       }
@@ -465,15 +566,8 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       const match = query.match(pattern);
       if (match && match[1]) {
         const name = match[1].trim();
-        // Palavras comuns que não devem ser consideradas nomes
-        const commonWords = ['Como', 'O', 'A', 'Os', 'As', 'De', 'Da', 'Do', 'Das', 'Dos', 'E', 'Em', 'Para', 'Sobre', 
-                            'Com', 'Explique', 'Fale', 'Conte', 'Diga', 'Informe', 'Quem', 'Qual', 'Quais', 'Onde',
-                            'Quando', 'Porque', 'Por', 'Que', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Brasileiro',
-                            'Brasileiros', 'Federal', 'Nacional', 'Republica', 'Presidente', 'Governador', 'Sistema'];
-        
-        // Verifica se não é uma palavra comum
         const nameLower = name.toLowerCase();
-        if (!commonWords.some(word => nameLower === word.toLowerCase())) {
+        if (!COMMON_WORDS.has(nameLower)) {
           // Verifica se tem pelo menos duas palavras (nome próprio) ou uma palavra com mais de 3 caracteres
           const nameWords = name.split(/\s+/);
           if (nameWords.length >= 2 || (nameWords.length === 1 && nameWords[0].length > 3)) {
@@ -490,7 +584,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     // Encontra índices das palavras-chave de análise/gráfico
     words.forEach((word, index) => {
       const lowerWord = word.toLowerCase().replace(/[.,!?;:]$/, '');
-      if (['gráfico', 'grafico', 'chart', 'análise', 'perfil', 'dê', 'de', 'mostre', 'mostra'].includes(lowerWord)) {
+      if (ANALYSIS_KEYWORDS.has(lowerWord)) {
         analysisKeywordIndices.push(index);
       }
     });
@@ -505,20 +599,16 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
             word[0] === word[0].toUpperCase() && 
             word[0] !== word[0].toLowerCase()) {
           const lowerWord = word.toLowerCase();
-          const commonWords = ['como', 'o', 'a', 'os', 'as', 'de', 'da', 'do', 'das', 'dos', 'e', 'em', 'para', 'sobre',
-                              'com', 'explique', 'fale', 'conte', 'diga', 'informe', 'quem', 'qual', 'quais', 'onde',
-                              'quando', 'porque', 'por', 'que', 'senado', 'câmara', 'congresso', 'brasil', 'brasileiro',
-                              'brasileiros', 'federal', 'nacional', 'republica', 'presidente', 'governador', 'sistema'];
-          
-          if (!commonWords.includes(lowerWord)) {
+
+          if (!COMMON_WORDS.has(lowerWord)) {
             // Tenta combinar com próxima palavra se também for capitalizada
             let fullName = word;
             if (i + 1 < words.length) {
               const nextWord = words[i + 1].replace(/[.,!?;:]$/, '');
-              if (nextWord.length > 2 && 
-                  nextWord[0] === nextWord[0].toUpperCase() && 
+              if (nextWord.length > 2 &&
+                  nextWord[0] === nextWord[0].toUpperCase() &&
                   nextWord[0] !== nextWord[0].toLowerCase() &&
-                  !commonWords.includes(nextWord.toLowerCase())) {
+                  !COMMON_WORDS.has(nextWord.toLowerCase())) {
                 fullName += ' ' + nextWord;
               }
             }
@@ -538,24 +628,18 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     const contextReferences = ['dele', 'dela', 'desse', 'dessa', 'deles', 'delas', 'disso', 'dessa', 'o gráfico', 'o grafico'];
     const hasContextReference = contextReferences.some(ref => lowerQuery.includes(ref));
     
-    // Nomes de políticos conhecidos (lista restrita - apenas políticos específicos)
-    const knownPoliticians = [
-      'bolsonaro', 'lula', 'ciro', 'marina', 'aecio', 'temer', 'dilma',
-      'doria', 'haddad', 'boulos', 'freixo', 'collor', 'tasso', 'barbosa'
-    ];
-    
     // Palavras-chave que indicam interesse em ANÁLISE/AVALIAÇÃO do político
     const analysisKeywords = [
       'análise', 'avaliação', 'pontos', 'pontos fortes', 'pontos fracos', 'características',
-      'perfil', 'avalie', 'analise', 'gráfico', 'grafico', 'chart', 'mostre', 'mostra', 
+      'perfil', 'avalie', 'analise', 'gráfico', 'grafico', 'chart', 'mostre', 'mostra',
       'dê', 'de', 'me dê', 'me de', 'me mostre', 'me mostra', 'quero ver', 'ver o', 'veja o'
     ];
-    
+
     // Verifica se há palavras-chave de ANÁLISE explícitas
     const hasAnalysisIntent = analysisKeywords.some(keyword => lowerQuery.includes(keyword));
-    
+
     // Verifica se há nomes conhecidos de políticos na query
-    const hasPoliticianName = knownPoliticians.some(name => lowerQuery.includes(name));
+    const hasPoliticianName = containsKnownPolitician(lowerQuery);
     
     // Se tem palavras-chave explícitas de gráfico/análise, tenta detectar nome próprio
     if (hasAnalysisIntent && !hasPoliticianName) {
@@ -651,55 +735,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     return false;
   };
 
-  const extractPoliticianName = (query) => {
-    const lowerQuery = query.toLowerCase();
-    
-    // Mapeamento de nomes conhecidos para nomes completos (lista restrita)
-    const politicianMap = {
-      'lula': 'Lula',
-      'luiz inácio lula da silva': 'Lula',
-      'luiz inacio lula da silva': 'Lula',
-      'bolsonaro': 'Bolsonaro',
-      'jair bolsonaro': 'Bolsonaro',
-      'ciro': 'Ciro Gomes',
-      'ciro gomes': 'Ciro Gomes',
-      'marina': 'Marina Silva',
-      'marina silva': 'Marina Silva',
-      'aecio': 'Aécio Neves',
-      'aécio neves': 'Aécio Neves',
-      'temer': 'Michel Temer',
-      'michel temer': 'Michel Temer',
-      'dilma': 'Dilma Rousseff',
-      'dilma rousseff': 'Dilma Rousseff',
-      'doria': 'João Doria',
-      'joão doria': 'João Doria',
-      'joao doria': 'João Doria',
-      'haddad': 'Fernando Haddad',
-      'fernando haddad': 'Fernando Haddad',
-      'boulos': 'Guilherme Boulos',
-      'guilherme boulos': 'Guilherme Boulos',
-      'freixo': 'Marcelo Freixo',
-      'marcelo freixo': 'Marcelo Freixo',
-      'collor': 'Fernando Collor',
-      'fernando collor': 'Fernando Collor',
-      'tasso': 'Tasso Jereissati',
-      'tasso jereissati': 'Tasso Jereissati',
-      'barbosa': 'Joaquim Barbosa',
-      'joaquim barbosa': 'Joaquim Barbosa'
-    };
-    
-    // Verifica mapeamentos diretos primeiro (prioridade)
-    // Só retorna nomes que estão no mapa de políticos conhecidos
-    for (const [key, value] of Object.entries(politicianMap)) {
-      if (lowerQuery.includes(key)) {
-        return value;
-      }
-    }
-    
-    // Se não encontrou nenhum político conhecido, retorna null
-    // Isso evita falsos positivos com nomes próprios genéricos
-    return null;
-  };
+  const extractPoliticianName = (query) => matchKnownPolitician(query);
 
   const generateAnalysis = (query, politicianName = null, messageHistory = null) => {
     let detectedPolitician = politicianName;
@@ -717,8 +753,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
     }
     
     // Verificação de segurança: não gera gráfico se o nome for genérico, palavra comum ou null
-    const genericNames = ['Político', 'Como', 'Explique', 'Fale', 'Conte', 'Diga', 'Sistema', 'Senado', 'Câmara', 'Congresso', 'Brasil', 'Federal'];
-    if (!detectedPolitician || genericNames.includes(detectedPolitician)) {
+    if (!detectedPolitician || isGenericName(detectedPolitician)) {
       return; // Não gera gráfico se não identificou um político válido
     }
 
@@ -863,25 +898,26 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
               <path d="M10.5 0C10.5 0 11.0793 5.40743 13.336 7.66405C15.5926 9.92066 21 10.5 21 10.5C21 10.5 15.5926 11.0793 13.336 13.336C11.0793 15.5926 10.5 21 10.5 21C10.5 21 9.92066 15.5926 7.66405 13.336C5.40743 11.0793 0 10.5 0 10.5C0 10.5 5.40743 9.92066 7.66405 7.66405C9.92066 5.40743 10.5 0 10.5 0Z" fill="currentColor"/>
             </svg>
           </div>
-          <h2 className="chat-header-text">Converse com a ÁgoraAI</h2>
+          <h2 className="chat-header-text">Converse com a {ASSISTANT_NAME}</h2>
         </div>
       )}
       <div className="chat-messages" ref={messagesContainerRef}>
         <div className="chat-stream">
-          <InsightsOverview showHeader={showHeader} />
+          <Suspense fallback={<div className="lazy-fallback" aria-hidden="true">Carregando insights...</div>}>
+            <InsightsOverview showHeader={showHeader} />
+          </Suspense>
           {messages.map((msg, idx) => (
               <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
                 <div className="message-header">
-                  {msg.role === 'user' ? 'Você' : 'ÁgoraAI'}
+                  {msg.role === 'user' ? 'Você' : ASSISTANT_NAME}
                 </div>
                 {msg.content === 'analysis' && msg.analysisData ? (
                   <div className="message-analysis">
                     <h3 style={{ marginTop: 0, marginBottom: '12px' }}>Análise: {msg.analysisData.politician}</h3>
                     <div style={{ width: '100%', margin: '0 auto', overflow: 'hidden' }}>
-                      <HexagonalChart
-                        data={msg.analysisData.data}
-                        politicianName={msg.analysisData.politician}
-                      />
+                      <Suspense fallback={<div className="chart-fallback" aria-hidden="true">Carregando gráfico...</div>}>
+                        <HexagonalChart data={msg.analysisData.data} politicianName={msg.analysisData.politician} />
+                      </Suspense>
                     </div>
                   </div>
                 ) : msg.content ? (
@@ -894,7 +930,7 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           ))}
           {loading && (
             <div className="message assistant">
-              <div className="message-header">ÁgoraAI</div>
+              <div className="message-header">{ASSISTANT_NAME}</div>
               <div className="message-content">
                 <div className="loading-spinner"></div> Pensando...
               </div>
@@ -902,14 +938,16 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
           )}
           {showNpsSurvey && (
             <div className="nps-wrapper">
-              <NPSSurvey />
+              <Suspense fallback={<div className="lazy-fallback" aria-hidden="true">Carregando pesquisa...</div>}>
+                <NPSSurvey />
+              </Suspense>
             </div>
           )}
         </div>
       </div>
       {showSuggestions && (
         <div className="chat-suggestions-container">
-          <p className="suggestions-title">Sugestões para explorar com a ÁgoraAI</p>
+          <p className="suggestions-title">Sugestões para explorar com a {ASSISTANT_NAME}</p>
           <div className="chat-suggestions">
             {displayedSuggestions.map((suggestion, idx) => (
               <button

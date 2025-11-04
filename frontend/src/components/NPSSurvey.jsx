@@ -1,8 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './NPSSurvey.css';
 
 const NPS_LOCAL_STORAGE_KEY = 'agoraai-nps-v1';
-const NPS_RESULTS_STORAGE_KEY = 'agoraai-nps-results';
 const ADMIN_PASSWORD = 'agoraai-admin-2024';
 const LEGACY_STORAGE_KEYS = ['politian-nps'];
 
@@ -69,6 +68,38 @@ const placeholderByClassification = {
   promotor: 'Compartilhe histórias de uso ou resultados que possamos amplificar.'
 };
 
+const scheduleLocalStorageWrite = (key, value) => {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    const idleHandle = window.requestIdleCallback(() => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        // ignore quota or availability issues
+      }
+    }, { timeout: 500 });
+
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
+  }
+
+  const timeoutHandle = window.setTimeout(() => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      // ignore quota or availability issues
+    }
+  }, 120);
+
+  return () => window.clearTimeout(timeoutHandle);
+};
+
 const NPSSurvey = () => {
   const [hydrated, setHydrated] = useState(false);
   const [selectedScore, setSelectedScore] = useState(null);
@@ -80,7 +111,10 @@ const NPSSurvey = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [storedResults, setStoredResults] = useState([]);
+  const [resultsLoading, setResultsLoading] = useState(true);
+  const [resultsError, setResultsError] = useState('');
   const [adminPanelOpen, setAdminPanelOpen] = useState(false);
   const [adminPassword, setAdminPassword] = useState('');
   const [adminUnlocked, setAdminUnlocked] = useState(false);
@@ -122,61 +156,102 @@ const NPSSurvey = () => {
         setHydrated(true);
       }
     };
-
-    const loadStoredResults = () => {
-      const raw = localStorage.getItem(NPS_RESULTS_STORAGE_KEY);
-      if (!raw) return;
-
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const cleaned = parsed
-            .filter((entry) => typeof entry === 'object' && entry !== null)
-            .map((entry) => ({
-              score: typeof entry.score === 'number' ? entry.score : null,
-              classification: typeof entry.classification === 'string' ? entry.classification : null,
-              reasons: Array.isArray(entry.reasons) ? entry.reasons.filter((reason) => typeof reason === 'string') : [],
-              feedback: typeof entry.feedback === 'string' ? entry.feedback : '',
-              submittedAt: typeof entry.submittedAt === 'string' ? entry.submittedAt : null
-            }))
-            .filter((entry) => entry.score !== null);
-
-          setStoredResults(cleaned);
-        }
-      } catch (error) {
-        // ignora resultados inválidos
-      }
-    };
-
     loadStoredSurvey();
-    loadStoredResults();
   }, []);
 
-  useEffect(() => {
-    if (!hydrated) return;
+  const normalizeResult = useCallback((entry) => {
+    if (!entry || typeof entry !== 'object') return null;
 
-    const payload = JSON.stringify({
-      score: selectedScore,
-      feedback,
-      reasons: selectedReasons,
-      submitted,
+    const score = typeof entry.score === 'number' ? entry.score : Number(entry.score);
+    if (Number.isNaN(score)) {
+      return null;
+    }
+
+    let submittedAt = null;
+    if (entry.submittedAt) {
+      try {
+        submittedAt = new Date(entry.submittedAt).toISOString();
+      } catch (error) {
+        submittedAt = null;
+      }
+    }
+
+    const trimmedFeedback = typeof entry.feedback === 'string' ? entry.feedback.trim() : '';
+    const reasons = Array.isArray(entry.reasons)
+      ? entry.reasons.filter((reason) => typeof reason === 'string' && reason.trim().length > 0)
+      : [];
+
+    let classification = typeof entry.classification === 'string' ? entry.classification : null;
+    if (!classification) {
+      if (score <= 6) classification = 'detrator';
+      else if (score <= 8) classification = 'neutro';
+      else classification = 'promotor';
+    }
+
+    return {
+      score,
+      classification,
+      reasons,
+      feedback: trimmedFeedback,
       submittedAt
-    });
+    };
+  }, []);
 
-    localStorage.setItem(NPS_LOCAL_STORAGE_KEY, payload);
+  const fetchResults = useCallback(async () => {
+    setResultsLoading(true);
+    setResultsError('');
+
+    try {
+      const response = await fetch('/api/nps/responses');
+      if (!response.ok) {
+        throw new Error('Falha ao buscar respostas NPS');
+      }
+
+      const data = await response.json();
+      const entries = Array.isArray(data?.responses) ? data.responses : [];
+      const normalized = entries
+        .map((entry) => normalizeResult(entry))
+        .filter((entry) => entry !== null)
+        .sort((a, b) => {
+          if (!a.submittedAt || !b.submittedAt) return 0;
+          return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+        });
+
+      setStoredResults(normalized);
+    } catch (error) {
+      setResultsError('Não foi possível carregar as respostas salvas. Tente novamente mais tarde.');
+    } finally {
+      setResultsLoading(false);
+    }
+  }, [normalizeResult]);
+
+  useEffect(() => {
+    fetchResults();
+  }, [fetchResults]);
+
+  const serializedSurveyState = useMemo(
+    () =>
+      JSON.stringify({
+        score: selectedScore,
+        feedback,
+        reasons: selectedReasons,
+        submitted,
+        submittedAt
+      }),
+    [feedback, selectedReasons, selectedScore, submitted, submittedAt]
+  );
+
+  useEffect(() => {
+    if (!hydrated || !serializedSurveyState) return undefined;
+
+    const cancel = scheduleLocalStorageWrite(NPS_LOCAL_STORAGE_KEY, serializedSurveyState);
 
     for (const legacyKey of LEGACY_STORAGE_KEYS) {
       localStorage.removeItem(legacyKey);
     }
-  }, [feedback, hydrated, selectedReasons, selectedScore, submitted, submittedAt]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(NPS_RESULTS_STORAGE_KEY, JSON.stringify(storedResults));
-    } catch (error) {
-      // ignore storage failures
-    }
-  }, [storedResults]);
+    return cancel;
+  }, [hydrated, serializedSurveyState]);
 
   const classification = useMemo(() => {
     if (selectedScore === null || selectedScore === undefined) {
@@ -284,8 +359,12 @@ const NPSSurvey = () => {
     });
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
 
     if (selectedScore === null) {
       setError('Escolha uma nota para continuar.');
@@ -299,26 +378,60 @@ const NPSSurvey = () => {
     }
 
     const timestamp = new Date().toISOString();
+    const payload = {
+      score: selectedScore,
+      classification,
+      reasons: selectedReasons,
+      feedback: feedback.trim(),
+      submittedAt: timestamp
+    };
 
-    setSubmitted(true);
-    setSubmittedAt(timestamp);
-    setError('');
-    setShowDetails(true);
+    setIsSubmitting(true);
 
-    if (selectedScore !== null) {
-      setStoredResults((previous) => {
-        const next = [
-          ...previous,
-          {
-            score: selectedScore,
-            classification,
-            reasons: selectedReasons,
-            feedback: feedback.trim(),
-            submittedAt: timestamp
-          }
-        ];
-        return next;
+    try {
+      const response = await fetch('/api/nps/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        throw new Error('Falha ao registrar resposta');
+      }
+
+      const saved = await response.json();
+      const normalized = normalizeResult({ ...payload, ...saved });
+
+      setSubmitted(true);
+      setSubmittedAt(normalized?.submittedAt ?? timestamp);
+      setError('');
+      setShowDetails(true);
+      setResultsError('');
+
+      if (normalized) {
+        setStoredResults((previous) => {
+          const filtered = previous.filter((entry) => {
+            return !(
+              entry.submittedAt === normalized.submittedAt &&
+              entry.score === normalized.score &&
+              entry.feedback === normalized.feedback
+            );
+          });
+          const next = [normalized, ...filtered];
+          return next.sort((a, b) => {
+            if (!a.submittedAt || !b.submittedAt) return 0;
+            return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+          });
+        });
+      }
+
+      fetchResults();
+    } catch (submissionError) {
+      setError('Não foi possível enviar sua resposta agora. Tente novamente em instantes.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -332,6 +445,7 @@ const NPSSurvey = () => {
     setShowDetails(false);
     setCopied(false);
     setCopyError('');
+    setIsSubmitting(false);
     setAdminPanelOpen(false);
     setAdminPassword('');
     setAdminUnlocked(false);
@@ -382,7 +496,7 @@ const NPSSurvey = () => {
         nps: null,
         average: null,
         reasonFrequency: [],
-        latest: []
+        entries: []
       };
     }
 
@@ -432,7 +546,7 @@ const NPSSurvey = () => {
         nps: null,
         average: null,
         reasonFrequency: [],
-        latest: []
+        entries: []
       };
     }
 
@@ -443,10 +557,12 @@ const NPSSurvey = () => {
       .map(([reason, count]) => ({ reason, count }))
       .sort((a, b) => b.count - a.count);
 
-    const latest = [...storedResults]
-      .filter((entry) => entry.submittedAt)
-      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-      .slice(0, 8);
+    const sortedEntries = [...storedResults].sort((a, b) => {
+      if (!a.submittedAt && !b.submittedAt) return 0;
+      if (!a.submittedAt) return 1;
+      if (!b.submittedAt) return -1;
+      return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
+    });
 
     return {
       total: tally.total,
@@ -456,7 +572,7 @@ const NPSSurvey = () => {
       nps: npsScore,
       average: averageScore,
       reasonFrequency,
-      latest
+      entries: sortedEntries
     };
   }, [storedResults]);
 
@@ -470,6 +586,11 @@ const NPSSurvey = () => {
       setAdminUnlocked(false);
       setAdminError('Senha incorreta. Tente novamente.');
     }
+  };
+
+  const openAdminPanel = () => {
+    setAdminPanelOpen(true);
+    fetchResults();
   };
 
   const closeAdminPanel = () => {
@@ -497,7 +618,7 @@ const NPSSurvey = () => {
         <button
           type="button"
           className="nps-admin-access"
-          onClick={() => setAdminPanelOpen(true)}
+          onClick={openAdminPanel}
           aria-haspopup="dialog"
           aria-expanded={adminPanelOpen}
         >
@@ -586,7 +707,7 @@ const NPSSurvey = () => {
                 </div>
               </div>
               <p className="nps-saved-hint">
-                Para consultar ou limpar manualmente, acesse o armazenamento local do navegador (localStorage) e busque pela chave
+                Para revisar ou limpar este envio no futuro, acesse o armazenamento local do navegador e procure pela chave
                 <code>agoraai-nps-v1</code>.
               </p>
             </div>
@@ -690,11 +811,11 @@ const NPSSurvey = () => {
           )}
 
           <div className="nps-form-actions">
-            <button type="submit" className="nps-submit" disabled={selectedScore === null}>
-              Enviar avaliação
+            <button type="submit" className="nps-submit" disabled={selectedScore === null || isSubmitting}>
+              {isSubmitting ? 'Enviando…' : 'Enviar avaliação'}
             </button>
             <span className="nps-saved-hint">
-              As respostas ficam salvas apenas no seu navegador até que você apague ou envie uma nova avaliação.
+              As respostas confirmadas ficam guardadas na base administrativa protegida da ÁgoraAI.
             </span>
           </div>
         </form>
@@ -779,10 +900,14 @@ const NPSSurvey = () => {
                 </div>
 
                 <div className="nps-admin-section">
-                  <h4>Últimas respostas</h4>
-                  {aggregatedMetrics.latest.length ? (
+                  <h4>Respostas registradas</h4>
+                  {resultsLoading ? (
+                    <p className="nps-admin-empty">Carregando respostas salvas…</p>
+                  ) : resultsError ? (
+                    <p className="nps-admin-empty">{resultsError}</p>
+                  ) : aggregatedMetrics.entries.length ? (
                     <ul className="nps-admin-list">
-                      {aggregatedMetrics.latest.map((entry, index) => {
+                      {aggregatedMetrics.entries.map((entry, index) => {
                         const formatted = entry.submittedAt
                           ? new Intl.DateTimeFormat('pt-BR', {
                               day: '2-digit',
@@ -792,7 +917,7 @@ const NPSSurvey = () => {
                             }).format(new Date(entry.submittedAt))
                           : 'Data indisponível';
                         return (
-                          <li key={`${entry.submittedAt}-${index}`}>
+                          <li key={`${entry.submittedAt ?? 'sem-data'}-${index}`}>
                             <div className="nps-admin-list-header">
                               <span className={`tag ${entry.classification ?? 'indefinido'}`}>{entry.classification ?? '—'}</span>
                               <strong>Nota {entry.score}</strong>
@@ -812,8 +937,7 @@ const NPSSurvey = () => {
                 </div>
 
                 <p className="nps-admin-storage">
-                  Os resultados ficam armazenados localmente na chave <code>{NPS_RESULTS_STORAGE_KEY}</code>. Exporte-os copiando o
-                  conteúdo do armazenamento local quando desejar.
+                  Os registros ficam guardados com segurança nos servidores da ÁgoraAI e só aparecem aqui após autenticação.
                 </p>
               </div>
             )}
