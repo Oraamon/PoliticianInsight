@@ -10,7 +10,7 @@ COPY frontend/ .
 
 RUN npm run build
 
-FROM golang:1.21-alpine AS backend-builder
+FROM golang:1.23-alpine AS backend-builder
 
 WORKDIR /app
 
@@ -22,7 +22,8 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o chatbot main.go
+# Build incluindo todos os arquivos .go necessários
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o chatbot ./main.go ./nps_store_firestore.go
 
 FROM alpine:latest
 
@@ -34,7 +35,8 @@ COPY --from=backend-builder /app/chatbot .
 
 COPY --from=frontend-builder /app/frontend/dist ./public
 
-RUN touch .env
+# Copiar env.yaml se existir (opcional, pode ser montado via volume)
+COPY env.yaml* ./
 
 EXPOSE 3000
 

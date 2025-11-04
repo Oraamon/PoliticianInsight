@@ -91,6 +91,7 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+data/
 
 # Go specific files
 # Binaries for programs and plugins

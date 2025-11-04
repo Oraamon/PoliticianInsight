@@ -1,9 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import './NPSSurvey.css';
 
 const NPS_LOCAL_STORAGE_KEY = 'agoraai-nps-v1';
-const NPS_RESULTS_STORAGE_KEY = 'agoraai-nps-results';
-const ADMIN_PASSWORD = 'agoraai-admin-2024';
 const LEGACY_STORAGE_KEYS = ['politian-nps'];
 
 const scores = Array.from({ length: 11 }, (_, index) => index);
@@ -69,6 +67,38 @@ const placeholderByClassification = {
   promotor: 'Compartilhe histórias de uso ou resultados que possamos amplificar.'
 };
 
+const scheduleLocalStorageWrite = (key, value) => {
+  if (typeof window === 'undefined') {
+    return () => {};
+  }
+
+  if (typeof window.requestIdleCallback === 'function') {
+    const idleHandle = window.requestIdleCallback(() => {
+      try {
+        localStorage.setItem(key, value);
+      } catch (error) {
+        // ignore quota or availability issues
+      }
+    }, { timeout: 500 });
+
+    return () => {
+      if (typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(idleHandle);
+      }
+    };
+  }
+
+  const timeoutHandle = window.setTimeout(() => {
+    try {
+      localStorage.setItem(key, value);
+    } catch (error) {
+      // ignore quota or availability issues
+    }
+  }, 120);
+
+  return () => window.clearTimeout(timeoutHandle);
+};
+
 const NPSSurvey = () => {
   const [hydrated, setHydrated] = useState(false);
   const [selectedScore, setSelectedScore] = useState(null);
@@ -80,11 +110,7 @@ const NPSSurvey = () => {
   const [showDetails, setShowDetails] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
-  const [storedResults, setStoredResults] = useState([]);
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [adminError, setAdminError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     const loadStoredSurvey = () => {
@@ -122,61 +148,32 @@ const NPSSurvey = () => {
         setHydrated(true);
       }
     };
-
-    const loadStoredResults = () => {
-      const raw = localStorage.getItem(NPS_RESULTS_STORAGE_KEY);
-      if (!raw) return;
-
-      try {
-        const parsed = JSON.parse(raw);
-        if (Array.isArray(parsed)) {
-          const cleaned = parsed
-            .filter((entry) => typeof entry === 'object' && entry !== null)
-            .map((entry) => ({
-              score: typeof entry.score === 'number' ? entry.score : null,
-              classification: typeof entry.classification === 'string' ? entry.classification : null,
-              reasons: Array.isArray(entry.reasons) ? entry.reasons.filter((reason) => typeof reason === 'string') : [],
-              feedback: typeof entry.feedback === 'string' ? entry.feedback : '',
-              submittedAt: typeof entry.submittedAt === 'string' ? entry.submittedAt : null
-            }))
-            .filter((entry) => entry.score !== null);
-
-          setStoredResults(cleaned);
-        }
-      } catch (error) {
-        // ignora resultados inválidos
-      }
-    };
-
     loadStoredSurvey();
-    loadStoredResults();
   }, []);
 
+  const serializedSurveyState = useMemo(
+    () =>
+      JSON.stringify({
+        score: selectedScore,
+        feedback,
+        reasons: selectedReasons,
+        submitted,
+        submittedAt
+      }),
+    [feedback, selectedReasons, selectedScore, submitted, submittedAt]
+  );
+
   useEffect(() => {
-    if (!hydrated) return;
+    if (!hydrated || !serializedSurveyState) return undefined;
 
-    const payload = JSON.stringify({
-      score: selectedScore,
-      feedback,
-      reasons: selectedReasons,
-      submitted,
-      submittedAt
-    });
-
-    localStorage.setItem(NPS_LOCAL_STORAGE_KEY, payload);
+    const cancel = scheduleLocalStorageWrite(NPS_LOCAL_STORAGE_KEY, serializedSurveyState);
 
     for (const legacyKey of LEGACY_STORAGE_KEYS) {
       localStorage.removeItem(legacyKey);
     }
-  }, [feedback, hydrated, selectedReasons, selectedScore, submitted, submittedAt]);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(NPS_RESULTS_STORAGE_KEY, JSON.stringify(storedResults));
-    } catch (error) {
-      // ignore storage failures
-    }
-  }, [storedResults]);
+    return cancel;
+  }, [hydrated, serializedSurveyState]);
 
   const classification = useMemo(() => {
     if (selectedScore === null || selectedScore === undefined) {
@@ -284,8 +281,12 @@ const NPSSurvey = () => {
     });
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
+
+    if (isSubmitting) {
+      return;
+    }
 
     if (selectedScore === null) {
       setError('Escolha uma nota para continuar.');
@@ -299,26 +300,39 @@ const NPSSurvey = () => {
     }
 
     const timestamp = new Date().toISOString();
+    const payload = {
+      score: selectedScore,
+      classification,
+      reasons: selectedReasons,
+      feedback: feedback.trim(),
+      submittedAt: timestamp
+    };
 
-    setSubmitted(true);
-    setSubmittedAt(timestamp);
-    setError('');
-    setShowDetails(true);
+    setIsSubmitting(true);
 
-    if (selectedScore !== null) {
-      setStoredResults((previous) => {
-        const next = [
-          ...previous,
-          {
-            score: selectedScore,
-            classification,
-            reasons: selectedReasons,
-            feedback: feedback.trim(),
-            submittedAt: timestamp
-          }
-        ];
-        return next;
+    try {
+      const response = await fetch('/api/nps/responses', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
       });
+
+      if (!response.ok) {
+        throw new Error('Falha ao registrar resposta');
+      }
+
+      const saved = await response.json();
+
+      setSubmitted(true);
+      setSubmittedAt(saved?.submittedAt ?? timestamp);
+      setError('');
+      setShowDetails(true);
+    } catch (submissionError) {
+      setError('Não foi possível enviar sua resposta agora. Tente novamente em instantes.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -332,10 +346,7 @@ const NPSSurvey = () => {
     setShowDetails(false);
     setCopied(false);
     setCopyError('');
-    setAdminPanelOpen(false);
-    setAdminPassword('');
-    setAdminUnlocked(false);
-    setAdminError('');
+    setIsSubmitting(false);
   };
 
   const formattedDate = useMemo(() => {
@@ -372,112 +383,6 @@ const NPSSurvey = () => {
     }
   };
 
-  const aggregatedMetrics = useMemo(() => {
-    if (!storedResults.length) {
-      return {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        nps: null,
-        average: null,
-        reasonFrequency: [],
-        latest: []
-      };
-    }
-
-    const tally = storedResults.reduce(
-      (accumulator, entry) => {
-        const { score } = entry;
-        if (typeof score !== 'number') {
-          return accumulator;
-        }
-
-        accumulator.total += 1;
-        accumulator.sum += score;
-
-        if (score >= 9) {
-          accumulator.promoters += 1;
-        } else if (score <= 6) {
-          accumulator.detractors += 1;
-        } else {
-          accumulator.passives += 1;
-        }
-
-        if (Array.isArray(entry.reasons)) {
-          for (const reason of entry.reasons) {
-            if (typeof reason !== 'string') continue;
-            accumulator.reasonMap.set(reason, (accumulator.reasonMap.get(reason) ?? 0) + 1);
-          }
-        }
-
-        return accumulator;
-      },
-      {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        sum: 0,
-        reasonMap: new Map()
-      }
-    );
-
-    if (!tally.total) {
-      return {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        nps: null,
-        average: null,
-        reasonFrequency: [],
-        latest: []
-      };
-    }
-
-    const npsScore = Math.round(((tally.promoters - tally.detractors) / tally.total) * 100);
-    const averageScore = Math.round((tally.sum / tally.total) * 10) / 10;
-
-    const reasonFrequency = Array.from(tally.reasonMap.entries())
-      .map(([reason, count]) => ({ reason, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const latest = [...storedResults]
-      .filter((entry) => entry.submittedAt)
-      .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
-      .slice(0, 8);
-
-    return {
-      total: tally.total,
-      promoters: tally.promoters,
-      passives: tally.passives,
-      detractors: tally.detractors,
-      nps: npsScore,
-      average: averageScore,
-      reasonFrequency,
-      latest
-    };
-  }, [storedResults]);
-
-  const handleAdminAccess = (event) => {
-    event.preventDefault();
-    setAdminError('');
-
-    if (adminPassword.trim() === ADMIN_PASSWORD) {
-      setAdminUnlocked(true);
-    } else {
-      setAdminUnlocked(false);
-      setAdminError('Senha incorreta. Tente novamente.');
-    }
-  };
-
-  const closeAdminPanel = () => {
-    setAdminPanelOpen(false);
-    setAdminPassword('');
-    setAdminUnlocked(false);
-    setAdminError('');
-  };
 
   return (
     <section className="nps-card" aria-label="Pesquisa de satisfação NPS da ÁgoraAI">
@@ -494,15 +399,6 @@ const NPSSurvey = () => {
             Responder novamente
           </button>
         )}
-        <button
-          type="button"
-          className="nps-admin-access"
-          onClick={() => setAdminPanelOpen(true)}
-          aria-haspopup="dialog"
-          aria-expanded={adminPanelOpen}
-        >
-          Área administrativa
-        </button>
       </header>
 
       <div className="nps-progress" role="group" aria-label="Etapas da pesquisa">
@@ -586,7 +482,7 @@ const NPSSurvey = () => {
                 </div>
               </div>
               <p className="nps-saved-hint">
-                Para consultar ou limpar manualmente, acesse o armazenamento local do navegador (localStorage) e busque pela chave
+                Para revisar ou limpar este envio no futuro, acesse o armazenamento local do navegador e procure pela chave
                 <code>agoraai-nps-v1</code>.
               </p>
             </div>
@@ -690,136 +586,16 @@ const NPSSurvey = () => {
           )}
 
           <div className="nps-form-actions">
-            <button type="submit" className="nps-submit" disabled={selectedScore === null}>
-              Enviar avaliação
+            <button type="submit" className="nps-submit" disabled={selectedScore === null || isSubmitting}>
+              {isSubmitting ? 'Enviando…' : 'Enviar avaliação'}
             </button>
             <span className="nps-saved-hint">
-              As respostas ficam salvas apenas no seu navegador até que você apague ou envie uma nova avaliação.
+              As respostas confirmadas ficam guardadas na base administrativa protegida da ÁgoraAI.
             </span>
           </div>
         </form>
       )}
 
-      {adminPanelOpen && (
-        <div className="nps-admin-overlay" role="presentation">
-          <div className="nps-admin-dialog" role="dialog" aria-modal="true" aria-label="Resultados NPS da ÁgoraAI">
-            <div className="nps-admin-header">
-              <h3>Painel NPS · Acesso restrito</h3>
-              <button type="button" className="nps-admin-close" onClick={closeAdminPanel} aria-label="Fechar painel">
-                ×
-              </button>
-            </div>
-
-            {!adminUnlocked ? (
-              <form className="nps-admin-form" onSubmit={handleAdminAccess}>
-                <label htmlFor="admin-password">Digite a senha administrativa</label>
-                <input
-                  id="admin-password"
-                  type="password"
-                  value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
-                  placeholder="Senha da equipe"
-                  autoFocus
-                />
-                {adminError && (
-                  <p className="nps-error" role="alert">
-                    {adminError}
-                  </p>
-                )}
-                <button type="submit" className="nps-admin-submit">
-                  Entrar
-                </button>
-                <p className="nps-admin-hint">Somente gestores autenticados podem consultar os resultados agregados.</p>
-              </form>
-            ) : (
-              <div className="nps-admin-content">
-                <div className="nps-admin-summary">
-                  <div className="nps-admin-tile">
-                    <span>Total de respostas</span>
-                    <strong>{aggregatedMetrics.total}</strong>
-                  </div>
-                  <div className="nps-admin-tile">
-                    <span>NPS consolidado</span>
-                    <strong>{aggregatedMetrics.nps !== null ? `${aggregatedMetrics.nps}` : '—'}</strong>
-                  </div>
-                  <div className="nps-admin-tile">
-                    <span>Média das notas</span>
-                    <strong>{aggregatedMetrics.average !== null ? aggregatedMetrics.average.toFixed(1) : '—'}</strong>
-                  </div>
-                  <div className="nps-admin-tile trio">
-                    <div>
-                      <span>Promotores</span>
-                      <strong>{aggregatedMetrics.promoters}</strong>
-                    </div>
-                    <div>
-                      <span>Neutros</span>
-                      <strong>{aggregatedMetrics.passives}</strong>
-                    </div>
-                    <div>
-                      <span>Detratores</span>
-                      <strong>{aggregatedMetrics.detractors}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nps-admin-section">
-                  <h4>Motivos mais citados</h4>
-                  {aggregatedMetrics.reasonFrequency.length ? (
-                    <ul className="nps-admin-reasons">
-                      {aggregatedMetrics.reasonFrequency.map((item) => (
-                        <li key={item.reason}>
-                          <span>{item.reason}</span>
-                          <strong>{item.count}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="nps-admin-empty">Ainda não há motivos consolidados para exibir.</p>
-                  )}
-                </div>
-
-                <div className="nps-admin-section">
-                  <h4>Últimas respostas</h4>
-                  {aggregatedMetrics.latest.length ? (
-                    <ul className="nps-admin-list">
-                      {aggregatedMetrics.latest.map((entry, index) => {
-                        const formatted = entry.submittedAt
-                          ? new Intl.DateTimeFormat('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }).format(new Date(entry.submittedAt))
-                          : 'Data indisponível';
-                        return (
-                          <li key={`${entry.submittedAt}-${index}`}>
-                            <div className="nps-admin-list-header">
-                              <span className={`tag ${entry.classification ?? 'indefinido'}`}>{entry.classification ?? '—'}</span>
-                              <strong>Nota {entry.score}</strong>
-                              <span>{formatted}</span>
-                            </div>
-                            {entry.reasons?.length > 0 && (
-                              <p className="nps-admin-reason-tags">{entry.reasons.join(' · ')}</p>
-                            )}
-                            {entry.feedback && <p className="nps-admin-feedback">{entry.feedback}</p>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="nps-admin-empty">Nenhuma resposta registrada até o momento.</p>
-                  )}
-                </div>
-
-                <p className="nps-admin-storage">
-                  Os resultados ficam armazenados localmente na chave <code>{NPS_RESULTS_STORAGE_KEY}</code>. Exporte-os copiando o
-                  conteúdo do armazenamento local quando desejar.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </section>
   );
 };

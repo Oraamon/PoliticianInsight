@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Chat from './components/Chat';
 import Sidebar from './components/Sidebar';
+import AdminLogin from './components/AdminLogin';
+import NPSAdmin from './components/NPSAdmin';
 import './App.css';
 
-function App() {
+function ChatPage() {
   const [error, setError] = useState(null);
   const [currentChatId, setCurrentChatId] = useState(null);
 
@@ -53,6 +56,37 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+// Protected Route para admin
+function ProtectedAdminRoute({ children }) {
+  const isAuthenticated = sessionStorage.getItem('nps_admin_authenticated') === 'true';
+  
+  if (!isAuthenticated) {
+    return <Navigate to="/admin/login" replace />;
+  }
+  
+  return children;
+}
+
+function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route path="/" element={<ChatPage />} />
+        <Route path="/admin/login" element={<AdminLogin />} />
+        <Route 
+          path="/admin/nps" 
+          element={
+            <ProtectedAdminRoute>
+              <NPSAdmin />
+            </ProtectedAdminRoute>
+          } 
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 
