@@ -178,11 +178,19 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  padding: 100px 42px 140px 42px;
+  padding: 20px 42px 140px 42px;
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
   position: relative;
   z-index: 1;
+}
+
+.chat-stream {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  justify-content: flex-end;
 }
 
 .chat-messages::-webkit-scrollbar {
@@ -628,7 +636,7 @@
   }
 
   .chat-messages {
-    padding: 100px 16px 200px 16px;
+    padding: 20px 16px 200px 16px;
   }
 
   .chat-suggestions-container {

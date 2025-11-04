@@ -31,7 +31,7 @@ type Config struct {
 	FirestoreProjectID string `yaml:"FIRESTORE_PROJECT_ID"`
 }
 
-// Load carrega as configurações do arquivo env.yaml
+// Load carrega as configurações do arquivo env.yaml ou variáveis de ambiente
 func Load() (*Config, error) {
 	cfg := &Config{
 		Port:                            "3000",
@@ -57,16 +57,42 @@ func Load() (*Config, error) {
 		}
 	}
 
-	if yamlPath == "" {
-		return nil, fmt.Errorf("arquivo env.yaml não encontrado em nenhum dos caminhos: %v. Crie o arquivo env.yaml baseado em env.yaml.example", yamlPaths)
-	}
+	if yamlPath != "" && err == nil {
+		// Arquivo encontrado, fazer parse do YAML
+		if err := yaml.Unmarshal(data, cfg); err != nil {
+			return nil, fmt.Errorf("erro ao fazer parse do env.yaml: %w", err)
+		}
+	} else {
+		// Arquivo não encontrado, usar variáveis de ambiente (Cloud Run)
+		cfg.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
+		cfg.Port = os.Getenv("PORT")
+		cfg.FirebaseProjectID = os.Getenv("FIREBASE_PROJECT_ID")
+		cfg.FirestoreProjectID = os.Getenv("FIRESTORE_PROJECT_ID")
+		cfg.FirebasePrivateKey = os.Getenv("FIREBASE_PRIVATE_KEY")
+		cfg.FirebaseClientEmail = os.Getenv("FIREBASE_CLIENT_EMAIL")
+		cfg.FirebaseClientID = os.Getenv("FIREBASE_CLIENT_ID")
+		cfg.FirebaseAuthURI = os.Getenv("FIREBASE_AUTH_URI")
+		cfg.FirebaseTokenURI = os.Getenv("FIREBASE_TOKEN_URI")
+		cfg.FirebaseAuthProviderX509CertURL = os.Getenv("FIREBASE_AUTH_PROVIDER_X509_CERT_URL")
+		cfg.FirebaseClientX509CertURL = os.Getenv("FIREBASE_CLIENT_X509_CERT_URL")
+		cfg.FirestoreCollection = os.Getenv("FIRESTORE_COLLECTION")
 
-	if err != nil {
-		return nil, fmt.Errorf("erro ao ler env.yaml: %w", err)
-	}
-
-	if err := yaml.Unmarshal(data, cfg); err != nil {
-		return nil, fmt.Errorf("erro ao fazer parse do env.yaml: %w", err)
+		// Valores padrão se não estiverem definidos
+		if cfg.Port == "" {
+			cfg.Port = "8080" // Padrão do Cloud Run
+		}
+		if cfg.FirebaseAuthURI == "" {
+			cfg.FirebaseAuthURI = "https://accounts.google.com/o/oauth2/auth"
+		}
+		if cfg.FirebaseTokenURI == "" {
+			cfg.FirebaseTokenURI = "https://oauth2.googleapis.com/token"
+		}
+		if cfg.FirebaseAuthProviderX509CertURL == "" {
+			cfg.FirebaseAuthProviderX509CertURL = "https://www.googleapis.com/oauth2/v1/certs"
+		}
+		if cfg.FirestoreCollection == "" {
+			cfg.FirestoreCollection = "nps_responses"
+		}
 	}
 
 	// Compatibilidade: se FIREBASE_PROJECT_ID não estiver definido, usar FIRESTORE_PROJECT_ID
@@ -101,6 +127,11 @@ func Load() (*Config, error) {
 	// Processar private key (remover escapes de \n)
 	if cfg.FirebasePrivateKey != "" {
 		cfg.FirebasePrivateKey = strings.ReplaceAll(cfg.FirebasePrivateKey, "\\n", "\n")
+	}
+
+	// PORT sempre deve ser lido da variável de ambiente se disponível (Cloud Run)
+	if portEnv := os.Getenv("PORT"); portEnv != "" {
+		cfg.Port = portEnv
 	}
 
 	return cfg, nil

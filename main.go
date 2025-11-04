@@ -442,10 +442,14 @@ func main() {
 	r.PathPrefix("/").Handler(spaHandler("./public/"))
 	port := cfg.Port
 	if port == "" {
-		port = "3000"
+		// Tentar usar PORT do ambiente (Cloud Run), senão usar 8080 como padrão
+		port = os.Getenv("PORT")
+		if port == "" {
+			port = "8080"
+		}
 	}
 
-	log.Printf("🚀 Servidor rodando em http://localhost:%s", port)
+	log.Printf("🚀 Servidor rodando na porta %s", port)
 	log.Fatal(http.ListenAndServe(":"+port, r))
 }
 
