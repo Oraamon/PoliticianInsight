@@ -183,14 +183,30 @@
   scrollbar-color: rgba(255, 255, 255, 0.3) transparent;
   position: relative;
   z-index: 1;
+  min-height: 0;
+}
+
+.chat-messages:has(.chat-stream-with-messages) {
+  padding-top: 20px;
 }
 
 .chat-stream {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-height: 100%;
-  justify-content: flex-end;
+}
+
+.chat-stream.chat-stream-with-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: flex-start;
+}
+
+.messages-spacer {
+  flex-shrink: 0;
+  width: 100%;
+  transition: height 0.3s ease;
 }
 
 .chat-messages::-webkit-scrollbar {

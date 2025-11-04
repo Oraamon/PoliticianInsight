@@ -252,24 +252,113 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [displayedSuggestions, setDisplayedSuggestions] = useState(() => pickRandomSuggestions());
   const [showNpsWithDelay, setShowNpsWithDelay] = useState(false);
   const [npsConfig, setNpsConfig] = useState(() => getNpsConfig());
+  const [windowHeight, setWindowHeight] = useState(() => window.innerHeight);
+  const [messagesTotalHeight, setMessagesTotalHeight] = useState(0);
 
   const messagesContainerRef = useRef(null);
+  const messagesStreamRef = useRef(null);
   const npsTimerRef = useRef(null);
-
-  const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      // Scroll para o final (parte inferior)
-      setTimeout(() => {
-        if (messagesContainerRef.current) {
-          messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
-        }
-      }, 0);
+  
+  // Atualiza a altura da janela quando redimensionada
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowHeight(window.innerHeight);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  // Mede a altura total das mensagens quando elas mudam
+  useEffect(() => {
+    if (messagesStreamRef.current && messages.length > 0) {
+      const measureHeight = () => {
+        // Encontra todas as mensagens dentro do stream
+        const messageElements = messagesStreamRef.current.querySelectorAll('.message');
+        let totalHeight = 0;
+        messageElements.forEach((msg) => {
+          totalHeight += msg.offsetHeight + 12; // 12px é o gap entre mensagens
+        });
+        setMessagesTotalHeight(totalHeight);
+      };
+      
+      // Usa requestAnimationFrame para garantir que o DOM foi renderizado
+      requestAnimationFrame(() => {
+        setTimeout(measureHeight, 100);
+      });
+    } else {
+      setMessagesTotalHeight(0);
+    }
+  }, [messages, loading]);
+  
+  // Calcula a altura do spacer que empurra mensagens para baixo
+  const calculateSpacerHeight = () => {
+    if (messages.length === 0) return 0;
+    // Altura máxima inicial (aproximadamente 80% da viewport)
+    const maxHeight = windowHeight * 0.8;
+    // Altura disponível para mensagens (descontando o input e padding)
+    const availableHeight = windowHeight - 200; // espaço para input e padding
+    
+    // Reduz baseado na altura real das mensagens
+    // Se ainda não mediu, usa uma estimativa baseada no número de mensagens
+    if (messagesTotalHeight > 0) {
+      // Se as mensagens já ocupam mais espaço que o disponível, não precisa de spacer
+      if (messagesTotalHeight >= availableHeight) {
+        return 0;
+      }
+      // Calcula o espaço restante
+      const remainingSpace = availableHeight - messagesTotalHeight;
+      
+      // Se as mensagens são pequenas (ocupam menos de 30% do espaço disponível)
+      // usa mais spacer para empurrar para baixo
+      if (messagesTotalHeight < availableHeight * 0.3) {
+        // Mensagens pequenas: usa 70-90% do espaço restante
+        const spacerPercentage = Math.max(0.7, 0.9 - (messagesTotalHeight / availableHeight) * 0.4);
+        return Math.min(remainingSpace * spacerPercentage, maxHeight);
+      } else {
+        // Mensagens maiores: limita o spacer a 30% do espaço restante
+        const calculatedHeight = Math.min(remainingSpace * 0.3, maxHeight);
+        return Math.max(0, calculatedHeight);
+      }
+    } else {
+      // Estimativa quando ainda não mediu - usa mais espaço para mensagens pequenas
+      const estimatedHeight = messages.length * 150;
+      // Se a estimativa é pequena, usa mais spacer
+      if (estimatedHeight < availableHeight * 0.3) {
+        return Math.max(0, maxHeight - estimatedHeight);
+      } else {
+        const calculatedHeight = Math.max(0, maxHeight - estimatedHeight);
+        return calculatedHeight;
+      }
     }
   };
 
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      // Scroll para o final (parte inferior) - mensagens mais novas embaixo
+      // Usa requestAnimationFrame para garantir que o DOM foi renderizado
+      requestAnimationFrame(() => {
+        setTimeout(() => {
+          if (messagesContainerRef.current) {
+            messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+          }
+        }, 100);
+      });
+    }
+  };
+
+  // Scroll para baixo automaticamente quando há mensagens
   useEffect(() => {
-    scrollToBottom();
+    if (messages.length > 0) {
+      scrollToBottom();
+    }
   }, [messages]);
+
+  // Scroll para baixo quando o loading termina (nova mensagem chegou)
+  useEffect(() => {
+    if (!loading && messages.length > 0) {
+      scrollToBottom();
+    }
+  }, [loading, messages.length]);
 
   // Salva mensagens do chat anterior ANTES de mudar de chat
   useEffect(() => {
@@ -1045,7 +1134,10 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   return (
     <div className="chat-container">
       <div className="chat-messages" ref={messagesContainerRef}>
-        <div className="chat-stream">
+        <div 
+          ref={messagesStreamRef}
+          className={`chat-stream ${messages.length > 0 ? 'chat-stream-with-messages' : ''}`}
+        >
           {showHeader && (
             <div className="chat-header">
               <div className="chat-header-svg">
@@ -1103,6 +1195,16 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
             <Suspense fallback={<div className="lazy-fallback" aria-hidden="true">Carregando insights...</div>}>
               <InsightsOverview showHeader={showHeader} />
             </Suspense>
+          )}
+          {messages.length > 0 && (
+            <div 
+              className="messages-spacer" 
+              style={{ 
+                height: `${calculateSpacerHeight()}px`,
+                minHeight: 0,
+                flexShrink: 0
+              }}
+            />
           )}
           {messages.map((msg, idx) => (
               <div key={idx} className={`message ${msg.role}${msg.content === 'analysis' ? ' message-with-chart' : ''}`}>
