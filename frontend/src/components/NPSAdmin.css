@@ -1,0 +1,412 @@
+.nps-admin-page {
+  min-height: 100vh;
+  width: 100vw;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+  overflow-y: auto;
+}
+
+.dark-mode .nps-admin-page {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.light-mode .nps-admin-page {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.nps-admin-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+.nps-admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 24px;
+  margin-bottom: 32px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-wrap: wrap;
+}
+
+.nps-admin-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.nps-admin-header p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+  opacity: 0.7;
+}
+
+.nps-admin-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.nps-admin-refresh,
+.nps-admin-logout,
+.nps-admin-back {
+  padding: 10px 20px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(15px) saturate(150%);
+  -webkit-backdrop-filter: blur(15px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 12px;
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 0.9rem;
+}
+
+.dark-mode .nps-admin-refresh,
+.dark-mode .nps-admin-logout,
+.dark-mode .nps-admin-back {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.light-mode .nps-admin-refresh,
+.light-mode .nps-admin-logout,
+.light-mode .nps-admin-back {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: var(--ink);
+}
+
+.nps-admin-refresh:hover,
+.nps-admin-logout:hover,
+.nps-admin-back:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .nps-admin-refresh:hover,
+.dark-mode .nps-admin-logout:hover,
+.dark-mode .nps-admin-back:hover {
+  background: rgba(0, 0, 0, 0.8);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nps-admin-logout {
+  background: rgba(248, 113, 113, 0.2);
+  border-color: rgba(248, 113, 113, 0.3);
+}
+
+.nps-admin-logout:hover {
+  background: rgba(248, 113, 113, 0.3);
+  border-color: rgba(248, 113, 113, 0.4);
+}
+
+.nps-admin-content {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.nps-admin-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 20px;
+}
+
+.nps-admin-tile {
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode .nps-admin-tile {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.light-mode .nps-admin-tile {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.nps-admin-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+}
+
+.nps-admin-tile span {
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+  opacity: 0.7;
+  font-weight: 500;
+}
+
+.nps-admin-tile strong {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.nps-admin-tile.trio {
+  grid-column: span 1;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+}
+
+.nps-admin-tile.trio div {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nps-admin-tile.trio div span {
+  font-size: 0.75rem;
+}
+
+.nps-admin-tile.trio div strong {
+  font-size: 1.5rem;
+}
+
+.nps-admin-section {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-mode .nps-admin-section {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.light-mode .nps-admin-section {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.nps-admin-section h4 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.nps-admin-reasons {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 12px;
+}
+
+.nps-admin-reasons li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  color: var(--ink);
+}
+
+.dark-mode .nps-admin-reasons li {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.light-mode .nps-admin-reasons li {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.nps-admin-reasons strong {
+  font-variant-numeric: tabular-nums;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.nps-admin-empty {
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  font-size: 0.95rem;
+  color: var(--ink);
+  opacity: 0.6;
+}
+
+.nps-admin-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.nps-admin-list li {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  transition: all 0.3s ease;
+}
+
+.dark-mode .nps-admin-list li {
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.light-mode .nps-admin-list li {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.nps-admin-list li:hover {
+  transform: translateX(4px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.nps-admin-list-header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nps-admin-list-header .tag {
+  border-radius: 999px;
+  padding: 6px 14px;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.nps-admin-list-header .tag.detrator {
+  background: #ef4444;
+}
+
+.nps-admin-list-header .tag.neutro {
+  background: #f59e0b;
+}
+
+.nps-admin-list-header .tag.promotor {
+  background: #10b981;
+}
+
+.nps-admin-list-header .tag.indefinido {
+  background: #64748b;
+}
+
+.nps-admin-list-header strong {
+  font-size: 1.1rem;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.nps-admin-list-header span:last-child {
+  font-size: 0.85rem;
+  color: var(--ink);
+  opacity: 0.6;
+}
+
+.nps-admin-reason-tags {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--accent);
+  opacity: 0.9;
+}
+
+.nps-admin-feedback {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--ink);
+  opacity: 0.9;
+}
+
+.nps-admin-storage {
+  margin: 0;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  font-size: 0.85rem;
+  color: var(--ink);
+  opacity: 0.7;
+  text-align: center;
+}
+
+@media (max-width: 768px) {
+  .nps-admin-container {
+    padding: 24px 16px;
+  }
+
+  .nps-admin-header {
+    flex-direction: column;
+  }
+
+  .nps-admin-header h1 {
+    font-size: 1.5rem;
+  }
+
+  .nps-admin-actions {
+    width: 100%;
+  }
+
+  .nps-admin-refresh,
+  .nps-admin-logout,
+  .nps-admin-back {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .nps-admin-summary {
+    grid-template-columns: 1fr;
+  }
+
+  .nps-admin-tile.trio {
+    grid-template-columns: 1fr;
+  }
+}
+

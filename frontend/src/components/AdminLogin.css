@@ -1,0 +1,210 @@
+.admin-login-container {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(30px) saturate(180%);
+  -webkit-backdrop-filter: blur(30px) saturate(180%);
+}
+
+.dark-mode .admin-login-container {
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.light-mode .admin-login-container {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.admin-login-card {
+  width: 100%;
+  max-width: 480px;
+  background: rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 24px;
+  padding: 48px 40px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.dark-mode .admin-login-card {
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.light-mode .admin-login-card {
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.admin-login-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.admin-login-header h1 {
+  margin: 0 0 8px 0;
+  font-size: 2rem;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.admin-login-header p {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--ink);
+  opacity: 0.7;
+}
+
+.admin-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-login-form label {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: var(--ink);
+  opacity: 0.9;
+}
+
+.admin-login-form input {
+  width: 100%;
+  padding: 16px 20px;
+  background: rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(15px) saturate(150%);
+  -webkit-backdrop-filter: blur(15px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  color: var(--ink);
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.dark-mode .admin-login-form input {
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.light-mode .admin-login-form input {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: var(--ink);
+}
+
+.admin-login-form input:focus {
+  outline: none;
+  border-color: #ff86e17a;
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.dark-mode .admin-login-form input:focus {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.admin-login-form input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.admin-login-error {
+  margin: 0;
+  padding: 12px 16px;
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.3);
+  border-radius: 8px;
+  color: #f87171;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.admin-login-submit {
+  width: 100%;
+  padding: 16px 24px;
+  background: rgba(110, 168, 255, 0.3);
+  backdrop-filter: blur(15px) saturate(150%);
+  -webkit-backdrop-filter: blur(15px) saturate(150%);
+  color: var(--ink);
+  font-weight: 600;
+  border: 1px solid rgba(110, 168, 255, 0.4);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-size: 16px;
+  box-shadow: 0 4px 16px rgba(110, 168, 255, 0.25);
+}
+
+.dark-mode .admin-login-submit {
+  background: rgba(110, 168, 255, 0.2);
+  border: 1px solid rgba(110, 168, 255, 0.3);
+  color: #ffffff;
+}
+
+.light-mode .admin-login-submit {
+  background: rgba(110, 168, 255, 0.3);
+  border: 1px solid rgba(110, 168, 255, 0.4);
+  color: var(--ink);
+}
+
+.admin-login-submit:hover:not(:disabled) {
+  background: rgba(110, 168, 255, 0.4);
+  border-color: rgba(110, 168, 255, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 32px rgba(110, 168, 255, 0.4);
+}
+
+.admin-login-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.admin-login-hint {
+  margin: 0;
+  font-size: 0.85rem;
+  color: var(--ink);
+  opacity: 0.6;
+  text-align: center;
+}
+
+.admin-login-footer {
+  margin-top: 32px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.admin-login-back {
+  width: 100%;
+  padding: 12px 20px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  opacity: 0.7;
+}
+
+.admin-login-back:hover {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+@media (max-width: 768px) {
+  .admin-login-card {
+    padding: 32px 24px;
+  }
+
+  .admin-login-header h1 {
+    font-size: 1.5rem;
+  }
+}
+

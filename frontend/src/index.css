@@ -71,7 +71,7 @@ body::before {
 }
 
 .light-mode body::before {
-  background-color: rgba(241, 245, 249, 0.88);
+  background-color: rgba(241, 245, 249, 0.3);
 }
 
 .dark-mode body::before {

@@ -191,6 +191,9 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const prevChatIdRef = useRef(null);
+  const [showNpsSurvey, setShowNpsSurvey] = useState(false);
+  const npsTimeoutRef = useRef(null);
+  const lastAssistantResponseRef = useRef(null);
 
   const [displayedSuggestions, setDisplayedSuggestions] = useState(() => pickRandomSuggestions());
 
@@ -308,6 +311,160 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
       setDisplayedSuggestions(pickRandomSuggestions());
     }
   }, [messages.length]);
+
+  // Controla exibição do NPS: mostra 10 segundos após resposta do assistente e esconde se já foi respondido
+  // IMPORTANTE: O feedback aparece apenas UMA VEZ por pessoa - se já foi respondido, nunca aparece novamente
+  useEffect(() => {
+    // Verifica se já foi respondido (uma vez respondido, nunca aparece novamente)
+    const checkNpsSubmitted = () => {
+      try {
+        const npsData = localStorage.getItem('agoraai-nps-v1');
+        if (npsData) {
+          const parsed = JSON.parse(npsData);
+          return Boolean(parsed.submitted);
+        }
+      } catch (error) {
+        // Erro ao verificar, assume que não foi submetido
+      }
+      return false;
+    };
+
+    // Se já foi respondido, nunca mostra o feedback novamente
+    if (checkNpsSubmitted()) {
+      setShowNpsSurvey(false);
+      if (npsTimeoutRef.current) {
+        clearTimeout(npsTimeoutRef.current);
+        npsTimeoutRef.current = null;
+      }
+      return;
+    }
+
+    // Verifica última mensagem do assistente
+    const assistantMessages = messages.filter(msg => msg.role === 'assistant' && msg.content !== 'analysis');
+    const lastAssistantMessage = assistantMessages[assistantMessages.length - 1];
+    
+    if (lastAssistantMessage) {
+      // Cria um identificador único baseado no conteúdo e índice
+      const messageId = `${lastAssistantMessage.role}_${assistantMessages.length}_${lastAssistantMessage.content?.substring(0, 50) || ''}`;
+      
+      // Se é uma nova resposta do assistente (diferente da última que rastreamos)
+      if (lastAssistantResponseRef.current !== messageId) {
+        lastAssistantResponseRef.current = messageId;
+        
+        // Limpa timeout anterior se existir
+        if (npsTimeoutRef.current) {
+          clearTimeout(npsTimeoutRef.current);
+          npsTimeoutRef.current = null;
+        }
+        
+        // Esconde o NPS imediatamente quando nova resposta chega
+        setShowNpsSurvey(false);
+        
+        // Verifica novamente se não foi respondido (para garantir)
+        if (!checkNpsSubmitted()) {
+          // Mostra após 10 segundos
+          npsTimeoutRef.current = setTimeout(() => {
+            // Verifica novamente se não foi respondido enquanto esperava
+            // (pode ter sido respondido durante os 10 segundos)
+            if (!checkNpsSubmitted()) {
+              setShowNpsSurvey(true);
+            }
+          }, 10000); // 10 segundos
+        }
+      }
+    } else {
+      // Se não há mensagem do assistente, esconde o NPS
+      setShowNpsSurvey(false);
+      if (npsTimeoutRef.current) {
+        clearTimeout(npsTimeoutRef.current);
+        npsTimeoutRef.current = null;
+      }
+    }
+
+    // Cleanup
+    return () => {
+      if (npsTimeoutRef.current) {
+        clearTimeout(npsTimeoutRef.current);
+        npsTimeoutRef.current = null;
+      }
+    };
+  }, [messages]);
+
+  // Monitora quando o NPS é submetido e esconde o survey permanentemente
+  // Uma vez respondido, o feedback nunca aparece novamente
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === 'agoraai-nps-v1' && e.newValue) {
+        try {
+          const parsed = JSON.parse(e.newValue);
+          if (parsed.submitted) {
+            // Uma vez submetido, esconde permanentemente
+            setShowNpsSurvey(false);
+            // Limpa timeout se ainda estiver aguardando
+            if (npsTimeoutRef.current) {
+              clearTimeout(npsTimeoutRef.current);
+              npsTimeoutRef.current = null;
+            }
+            // Limpa a referência para que não tente mostrar novamente
+            lastAssistantResponseRef.current = null;
+          }
+        } catch (error) {
+          // Erro ao parsear
+        }
+      }
+    };
+
+    // Verifica se já foi submetido ao montar
+    // Se já foi respondido uma vez, nunca mostra novamente
+    try {
+      const npsData = localStorage.getItem('agoraai-nps-v1');
+      if (npsData) {
+        const parsed = JSON.parse(npsData);
+        if (parsed.submitted) {
+          setShowNpsSurvey(false);
+          // Limpa qualquer timeout pendente
+          if (npsTimeoutRef.current) {
+            clearTimeout(npsTimeoutRef.current);
+            npsTimeoutRef.current = null;
+          }
+          // Limpa a referência para que não tente mostrar novamente
+          lastAssistantResponseRef.current = null;
+        }
+      }
+    } catch (error) {
+      // Erro ao verificar
+    }
+
+    // Escuta mudanças no localStorage (para outras abas)
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Também verifica periodicamente (para mudanças na mesma aba)
+    const interval = setInterval(() => {
+      try {
+        const npsData = localStorage.getItem('agoraai-nps-v1');
+        if (npsData) {
+          const parsed = JSON.parse(npsData);
+          // Se foi submetido, esconde permanentemente e cancela qualquer timer
+          if (parsed.submitted) {
+            setShowNpsSurvey(false);
+            if (npsTimeoutRef.current) {
+              clearTimeout(npsTimeoutRef.current);
+              npsTimeoutRef.current = null;
+            }
+            // Limpa a referência para que não tente mostrar novamente
+            lastAssistantResponseRef.current = null;
+          }
+        }
+      } catch (error) {
+        // Erro ao verificar
+      }
+    }, 1000); // Verifica a cada segundo
+
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, []);
 
   // Prepara o contexto das mensagens anteriores para enviar à API
   const prepareContext = (currentMessages) => {
@@ -880,7 +1037,6 @@ const Chat = ({ currentChatId, setCurrentChatId }) => {
   const userMessageCount = messages.filter(msg => msg.role === 'user').length;
   const showHeader = userMessageCount === 0;
   const showSuggestions = userMessageCount === 0;
-  const showNpsSurvey = !showSuggestions;
 
 
   const handleSuggestionClick = (suggestion) => {

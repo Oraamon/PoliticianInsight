@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import './NPSSurvey.css';
 
 const NPS_LOCAL_STORAGE_KEY = 'agoraai-nps-v1';
-const ADMIN_PASSWORD = 'agoraai-admin-2024';
 const LEGACY_STORAGE_KEYS = ['politian-nps'];
 
 const scores = Array.from({ length: 11 }, (_, index) => index);
@@ -112,13 +111,6 @@ const NPSSurvey = () => {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [storedResults, setStoredResults] = useState([]);
-  const [resultsLoading, setResultsLoading] = useState(true);
-  const [resultsError, setResultsError] = useState('');
-  const [adminPanelOpen, setAdminPanelOpen] = useState(false);
-  const [adminPassword, setAdminPassword] = useState('');
-  const [adminUnlocked, setAdminUnlocked] = useState(false);
-  const [adminError, setAdminError] = useState('');
 
   useEffect(() => {
     const loadStoredSurvey = () => {
@@ -158,76 +150,6 @@ const NPSSurvey = () => {
     };
     loadStoredSurvey();
   }, []);
-
-  const normalizeResult = useCallback((entry) => {
-    if (!entry || typeof entry !== 'object') return null;
-
-    const score = typeof entry.score === 'number' ? entry.score : Number(entry.score);
-    if (Number.isNaN(score)) {
-      return null;
-    }
-
-    let submittedAt = null;
-    if (entry.submittedAt) {
-      try {
-        submittedAt = new Date(entry.submittedAt).toISOString();
-      } catch (error) {
-        submittedAt = null;
-      }
-    }
-
-    const trimmedFeedback = typeof entry.feedback === 'string' ? entry.feedback.trim() : '';
-    const reasons = Array.isArray(entry.reasons)
-      ? entry.reasons.filter((reason) => typeof reason === 'string' && reason.trim().length > 0)
-      : [];
-
-    let classification = typeof entry.classification === 'string' ? entry.classification : null;
-    if (!classification) {
-      if (score <= 6) classification = 'detrator';
-      else if (score <= 8) classification = 'neutro';
-      else classification = 'promotor';
-    }
-
-    return {
-      score,
-      classification,
-      reasons,
-      feedback: trimmedFeedback,
-      submittedAt
-    };
-  }, []);
-
-  const fetchResults = useCallback(async () => {
-    setResultsLoading(true);
-    setResultsError('');
-
-    try {
-      const response = await fetch('/api/nps/responses');
-      if (!response.ok) {
-        throw new Error('Falha ao buscar respostas NPS');
-      }
-
-      const data = await response.json();
-      const entries = Array.isArray(data?.responses) ? data.responses : [];
-      const normalized = entries
-        .map((entry) => normalizeResult(entry))
-        .filter((entry) => entry !== null)
-        .sort((a, b) => {
-          if (!a.submittedAt || !b.submittedAt) return 0;
-          return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
-        });
-
-      setStoredResults(normalized);
-    } catch (error) {
-      setResultsError('Não foi possível carregar as respostas salvas. Tente novamente mais tarde.');
-    } finally {
-      setResultsLoading(false);
-    }
-  }, [normalizeResult]);
-
-  useEffect(() => {
-    fetchResults();
-  }, [fetchResults]);
 
   const serializedSurveyState = useMemo(
     () =>
@@ -402,32 +324,11 @@ const NPSSurvey = () => {
       }
 
       const saved = await response.json();
-      const normalized = normalizeResult({ ...payload, ...saved });
 
       setSubmitted(true);
-      setSubmittedAt(normalized?.submittedAt ?? timestamp);
+      setSubmittedAt(saved?.submittedAt ?? timestamp);
       setError('');
       setShowDetails(true);
-      setResultsError('');
-
-      if (normalized) {
-        setStoredResults((previous) => {
-          const filtered = previous.filter((entry) => {
-            return !(
-              entry.submittedAt === normalized.submittedAt &&
-              entry.score === normalized.score &&
-              entry.feedback === normalized.feedback
-            );
-          });
-          const next = [normalized, ...filtered];
-          return next.sort((a, b) => {
-            if (!a.submittedAt || !b.submittedAt) return 0;
-            return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
-          });
-        });
-      }
-
-      fetchResults();
     } catch (submissionError) {
       setError('Não foi possível enviar sua resposta agora. Tente novamente em instantes.');
     } finally {
@@ -446,10 +347,6 @@ const NPSSurvey = () => {
     setCopied(false);
     setCopyError('');
     setIsSubmitting(false);
-    setAdminPanelOpen(false);
-    setAdminPassword('');
-    setAdminUnlocked(false);
-    setAdminError('');
   };
 
   const formattedDate = useMemo(() => {
@@ -486,119 +383,6 @@ const NPSSurvey = () => {
     }
   };
 
-  const aggregatedMetrics = useMemo(() => {
-    if (!storedResults.length) {
-      return {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        nps: null,
-        average: null,
-        reasonFrequency: [],
-        entries: []
-      };
-    }
-
-    const tally = storedResults.reduce(
-      (accumulator, entry) => {
-        const { score } = entry;
-        if (typeof score !== 'number') {
-          return accumulator;
-        }
-
-        accumulator.total += 1;
-        accumulator.sum += score;
-
-        if (score >= 9) {
-          accumulator.promoters += 1;
-        } else if (score <= 6) {
-          accumulator.detractors += 1;
-        } else {
-          accumulator.passives += 1;
-        }
-
-        if (Array.isArray(entry.reasons)) {
-          for (const reason of entry.reasons) {
-            if (typeof reason !== 'string') continue;
-            accumulator.reasonMap.set(reason, (accumulator.reasonMap.get(reason) ?? 0) + 1);
-          }
-        }
-
-        return accumulator;
-      },
-      {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        sum: 0,
-        reasonMap: new Map()
-      }
-    );
-
-    if (!tally.total) {
-      return {
-        total: 0,
-        promoters: 0,
-        passives: 0,
-        detractors: 0,
-        nps: null,
-        average: null,
-        reasonFrequency: [],
-        entries: []
-      };
-    }
-
-    const npsScore = Math.round(((tally.promoters - tally.detractors) / tally.total) * 100);
-    const averageScore = Math.round((tally.sum / tally.total) * 10) / 10;
-
-    const reasonFrequency = Array.from(tally.reasonMap.entries())
-      .map(([reason, count]) => ({ reason, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const sortedEntries = [...storedResults].sort((a, b) => {
-      if (!a.submittedAt && !b.submittedAt) return 0;
-      if (!a.submittedAt) return 1;
-      if (!b.submittedAt) return -1;
-      return new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime();
-    });
-
-    return {
-      total: tally.total,
-      promoters: tally.promoters,
-      passives: tally.passives,
-      detractors: tally.detractors,
-      nps: npsScore,
-      average: averageScore,
-      reasonFrequency,
-      entries: sortedEntries
-    };
-  }, [storedResults]);
-
-  const handleAdminAccess = (event) => {
-    event.preventDefault();
-    setAdminError('');
-
-    if (adminPassword.trim() === ADMIN_PASSWORD) {
-      setAdminUnlocked(true);
-    } else {
-      setAdminUnlocked(false);
-      setAdminError('Senha incorreta. Tente novamente.');
-    }
-  };
-
-  const openAdminPanel = () => {
-    setAdminPanelOpen(true);
-    fetchResults();
-  };
-
-  const closeAdminPanel = () => {
-    setAdminPanelOpen(false);
-    setAdminPassword('');
-    setAdminUnlocked(false);
-    setAdminError('');
-  };
 
   return (
     <section className="nps-card" aria-label="Pesquisa de satisfação NPS da ÁgoraAI">
@@ -615,15 +399,6 @@ const NPSSurvey = () => {
             Responder novamente
           </button>
         )}
-        <button
-          type="button"
-          className="nps-admin-access"
-          onClick={openAdminPanel}
-          aria-haspopup="dialog"
-          aria-expanded={adminPanelOpen}
-        >
-          Área administrativa
-        </button>
       </header>
 
       <div className="nps-progress" role="group" aria-label="Etapas da pesquisa">
@@ -821,129 +596,6 @@ const NPSSurvey = () => {
         </form>
       )}
 
-      {adminPanelOpen && (
-        <div className="nps-admin-overlay" role="presentation">
-          <div className="nps-admin-dialog" role="dialog" aria-modal="true" aria-label="Resultados NPS da ÁgoraAI">
-            <div className="nps-admin-header">
-              <h3>Painel NPS · Acesso restrito</h3>
-              <button type="button" className="nps-admin-close" onClick={closeAdminPanel} aria-label="Fechar painel">
-                ×
-              </button>
-            </div>
-
-            {!adminUnlocked ? (
-              <form className="nps-admin-form" onSubmit={handleAdminAccess}>
-                <label htmlFor="admin-password">Digite a senha administrativa</label>
-                <input
-                  id="admin-password"
-                  type="password"
-                  value={adminPassword}
-                  onChange={(event) => setAdminPassword(event.target.value)}
-                  placeholder="Senha da equipe"
-                  autoFocus
-                />
-                {adminError && (
-                  <p className="nps-error" role="alert">
-                    {adminError}
-                  </p>
-                )}
-                <button type="submit" className="nps-admin-submit">
-                  Entrar
-                </button>
-                <p className="nps-admin-hint">Somente gestores autenticados podem consultar os resultados agregados.</p>
-              </form>
-            ) : (
-              <div className="nps-admin-content">
-                <div className="nps-admin-summary">
-                  <div className="nps-admin-tile">
-                    <span>Total de respostas</span>
-                    <strong>{aggregatedMetrics.total}</strong>
-                  </div>
-                  <div className="nps-admin-tile">
-                    <span>NPS consolidado</span>
-                    <strong>{aggregatedMetrics.nps !== null ? `${aggregatedMetrics.nps}` : '—'}</strong>
-                  </div>
-                  <div className="nps-admin-tile">
-                    <span>Média das notas</span>
-                    <strong>{aggregatedMetrics.average !== null ? aggregatedMetrics.average.toFixed(1) : '—'}</strong>
-                  </div>
-                  <div className="nps-admin-tile trio">
-                    <div>
-                      <span>Promotores</span>
-                      <strong>{aggregatedMetrics.promoters}</strong>
-                    </div>
-                    <div>
-                      <span>Neutros</span>
-                      <strong>{aggregatedMetrics.passives}</strong>
-                    </div>
-                    <div>
-                      <span>Detratores</span>
-                      <strong>{aggregatedMetrics.detractors}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="nps-admin-section">
-                  <h4>Motivos mais citados</h4>
-                  {aggregatedMetrics.reasonFrequency.length ? (
-                    <ul className="nps-admin-reasons">
-                      {aggregatedMetrics.reasonFrequency.map((item) => (
-                        <li key={item.reason}>
-                          <span>{item.reason}</span>
-                          <strong>{item.count}</strong>
-                        </li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <p className="nps-admin-empty">Ainda não há motivos consolidados para exibir.</p>
-                  )}
-                </div>
-
-                <div className="nps-admin-section">
-                  <h4>Respostas registradas</h4>
-                  {resultsLoading ? (
-                    <p className="nps-admin-empty">Carregando respostas salvas…</p>
-                  ) : resultsError ? (
-                    <p className="nps-admin-empty">{resultsError}</p>
-                  ) : aggregatedMetrics.entries.length ? (
-                    <ul className="nps-admin-list">
-                      {aggregatedMetrics.entries.map((entry, index) => {
-                        const formatted = entry.submittedAt
-                          ? new Intl.DateTimeFormat('pt-BR', {
-                              day: '2-digit',
-                              month: 'short',
-                              hour: '2-digit',
-                              minute: '2-digit'
-                            }).format(new Date(entry.submittedAt))
-                          : 'Data indisponível';
-                        return (
-                          <li key={`${entry.submittedAt ?? 'sem-data'}-${index}`}>
-                            <div className="nps-admin-list-header">
-                              <span className={`tag ${entry.classification ?? 'indefinido'}`}>{entry.classification ?? '—'}</span>
-                              <strong>Nota {entry.score}</strong>
-                              <span>{formatted}</span>
-                            </div>
-                            {entry.reasons?.length > 0 && (
-                              <p className="nps-admin-reason-tags">{entry.reasons.join(' · ')}</p>
-                            )}
-                            {entry.feedback && <p className="nps-admin-feedback">{entry.feedback}</p>}
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="nps-admin-empty">Nenhuma resposta registrada até o momento.</p>
-                  )}
-                </div>
-
-                <p className="nps-admin-storage">
-                  Os registros ficam guardados com segurança nos servidores da ÁgoraAI e só aparecem aqui após autenticação.
-                </p>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </section>
   );
 };

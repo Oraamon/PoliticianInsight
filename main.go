@@ -14,8 +14,9 @@ import (
 	"sync"
 	"time"
 
+	"chat-bot/internal/config"
+
 	"github.com/gorilla/mux"
-	"github.com/joho/godotenv"
 )
 
 type CacheEntry struct {
@@ -354,24 +355,76 @@ var (
 	cache        *Cache
 	geminiAPIKey string
 	geminiURL    = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent"
-	npsStore     *NPSStore
+	npsStore     NPSStoreInterface
 )
 
+// spaHandler serve arquivos estáticos e faz fallback para index.html para React Router
+func spaHandler(staticDir string) http.Handler {
+	fileServer := http.FileServer(http.Dir(staticDir))
+
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Não processar requisições para API
+		if strings.HasPrefix(r.URL.Path, "/api") {
+			http.NotFound(w, r)
+			return
+		}
+
+		// Construir o caminho do arquivo
+		path := filepath.Join(staticDir, r.URL.Path)
+
+		// Verificar se o arquivo existe
+		if info, err := os.Stat(path); err == nil && !info.IsDir() {
+			// Arquivo existe, servir normalmente
+			fileServer.ServeHTTP(w, r)
+			return
+		}
+
+		// Arquivo não existe ou é diretório, servir index.html para React Router
+		indexPath := filepath.Join(staticDir, "index.html")
+		if _, err := os.Stat(indexPath); err == nil {
+			http.ServeFile(w, r, indexPath)
+		} else {
+			http.NotFound(w, r)
+		}
+	})
+}
+
 func main() {
-	err := godotenv.Load(".env")
+	// Carregar configurações do arquivo env.yaml
+	cfg, err := config.Load()
 	if err != nil {
-		log.Println("Arquivo .env não encontrado, usando variáveis de ambiente do sistema")
+		log.Fatalf("Erro ao carregar configurações: %v", err)
 	}
 
-	geminiAPIKey = os.Getenv("GEMINI_API_KEY")
+	geminiAPIKey = cfg.GeminiAPIKey
 	if geminiAPIKey == "" {
-		log.Fatal("GEMINI_API_KEY não definida. Defina no arquivo .env")
+		log.Fatal("GEMINI_API_KEY não definida. Defina no arquivo env.yaml")
 	}
 
 	cache = NewCache(5 * time.Minute)
-	npsStore, err = NewNPSStore(npsStoreFilePath)
-	if err != nil {
-		log.Fatalf("não foi possível preparar o armazenamento NPS: %v", err)
+
+	// Tenta usar Firestore se as variáveis de ambiente estiverem configuradas
+	if cfg.FirebaseProjectID != "" {
+		ctx := context.Background()
+		firestoreStore, err := NewNPSStoreFirestore(ctx, cfg)
+		if err != nil {
+			log.Printf("⚠️  Erro ao conectar ao Firestore: %v. Usando armazenamento local como fallback.", err)
+			// Fallback para arquivo local
+			npsStore, err = NewNPSStore(npsStoreFilePath)
+			if err != nil {
+				log.Fatalf("não foi possível preparar o armazenamento NPS: %v", err)
+			}
+		} else {
+			log.Println("✅ Firestore configurado para armazenamento de feedback NPS")
+			npsStore = firestoreStore
+		}
+	} else {
+		// Usa arquivo local se Firestore não estiver configurado
+		log.Println("📁 Usando armazenamento local (arquivo JSON). Configure FIREBASE_PROJECT_ID ou FIRESTORE_PROJECT_ID no env.yaml para usar Firestore.")
+		npsStore, err = NewNPSStore(npsStoreFilePath)
+		if err != nil {
+			log.Fatalf("não foi possível preparar o armazenamento NPS: %v", err)
+		}
 	}
 	r := mux.NewRouter()
 	r.Use(corsMiddleware)
@@ -385,8 +438,9 @@ func main() {
 	api.HandleFunc("/nps/responses", handleNPSSubmit).Methods("POST")
 	api.HandleFunc("/nps/responses", handleNPSList).Methods("GET")
 
-	r.PathPrefix("/").Handler(http.FileServer(http.Dir("./public/")))
-	port := os.Getenv("PORT")
+	// Serve arquivos estáticos e fallback para index.html para React Router
+	r.PathPrefix("/").Handler(spaHandler("./public/"))
+	port := cfg.Port
 	if port == "" {
 		port = "3000"
 	}
